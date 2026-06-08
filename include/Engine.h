@@ -4,6 +4,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <string>
+#include <vector>
+#include "../include/Transformations.h"
 
 class Engine {
 public:
@@ -30,9 +32,13 @@ private:
     float worldMinX, worldMaxX;
     float worldMinY, worldMaxY;
 
+    // Shape storage (Member 4: populate, Member 3: read for selection)
+    std::vector<std::vector<Point2D>> shapes;
+
     // Rendering loop
     void update(float deltaTime);
     void render();
+    void scanLineFill(const std::vector<Point2D>& polygon);
 
     // GLFW Callbacks
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);

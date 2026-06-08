@@ -19,7 +19,7 @@ bool Engine::initialize() {
     // Configure GLFW for OpenGL
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 
     window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
     if (!window) {
@@ -78,6 +78,15 @@ void Engine::render() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     // TODO: Implement rendering of the CAD shapes using world and viewport coordinates
+}
+
+void Engine::scanLineFill(const std::vector<Point2D>& polygon) {
+    // TODO: Implement scan-line polygon fill algorithm (Member 4)
+    // 1. Find yMin and yMax of the polygon
+    // 2. For each scan line y from yMin to yMax:
+    //    a. Find all intersections of the scan line with polygon edges
+    //    b. Sort intersections by x
+    //    c. Draw horizontal segments between even-odd pairs using glBegin(GL_LINES)
 }
 
 void Engine::shutdown() {
