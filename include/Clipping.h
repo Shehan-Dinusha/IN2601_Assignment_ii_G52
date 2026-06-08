@@ -34,6 +34,13 @@ public:
     // Returns true if point is inside the polygon.
     static bool isPointInPolygon(const Point2D& point, const std::vector<Point2D>& polygon);
 
+    // Finds the enclosed region (face) containing a click point,
+    // formed by intersecting line segments from all shapes.
+    // Fills 'out' with boundary vertices. Returns true if found.
+    static bool findEnclosedRegion(std::vector<Point2D>& out, const Point2D& click,
+        const std::vector<std::vector<Point2D>>& shapeVertices,
+        const std::vector<bool>& shapeClosed);
+
 private:
     // Helper function for region code calculation
     static int computeRegionCode(float x, float y, const BoundingBox& box);

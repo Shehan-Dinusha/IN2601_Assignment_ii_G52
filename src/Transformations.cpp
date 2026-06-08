@@ -1,60 +1,129 @@
-#include "../include/Transformations.h"
+#include "Transformations.h"
 #include <cmath>
 
 Matrix3x3::Matrix3x3() {
-    // Initialize as identity matrix
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
             m[i][j] = (i == j) ? 1.0f : 0.0f;
-        }
-    }
 }
 
 Matrix3x3 Matrix3x3::operator*(const Matrix3x3& other) const {
     Matrix3x3 result;
-    // TODO: Implement 3x3 matrix multiplication
-    // std::memset to 0 then loop multiply
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) {
+            result.m[i][j] = 0.0f;
+            for (int k = 0; k < 3; ++k)
+                result.m[i][j] += m[i][k] * other.m[k][j];
+        }
     return result;
 }
 
 Point2D Matrix3x3::operator*(const Point2D& point) const {
     Point2D result;
-    result.x = 0; result.y = 0; result.w = 0;
-    // TODO: Implement matrix-vector multiplication
+    result.x = m[0][0] * point.x + m[0][1] * point.y + m[0][2] * point.w;
+    result.y = m[1][0] * point.x + m[1][1] * point.y + m[1][2] * point.w;
+    result.w = m[2][0] * point.x + m[2][1] * point.y + m[2][2] * point.w;
     return result;
 }
 
 Matrix3x3 Transformations::getTranslationMatrix(float tx, float ty) {
     Matrix3x3 mat;
-    // TODO: Setup translation matrix values directly
+    mat.m[0][2] = tx;
+    mat.m[1][2] = ty;
     return mat;
 }
 
 Matrix3x3 Transformations::getScalingMatrix(float sx, float sy) {
     Matrix3x3 mat;
-    // TODO: Setup scaling matrix values
+    mat.m[0][0] = sx;
+    mat.m[1][1] = sy;
     return mat;
 }
 
 Matrix3x3 Transformations::getRotationMatrix(float angleRadians) {
     Matrix3x3 mat;
-    // TODO: Setup rotation matrix using std::cos and std::sin
+    float c = std::cos(angleRadians), s = std::sin(angleRadians);
+    mat.m[0][0] = c; mat.m[0][1] = -s;
+    mat.m[1][0] = s; mat.m[1][1] =  c;
+    return mat;
+}
+
+Matrix3x3 Transformations::getReflectionMatrix(bool mirrorX, bool mirrorY) {
+    Matrix3x3 mat;
+    if (mirrorX) mat.m[0][0] = -1.0f;
+    if (mirrorY) mat.m[1][1] = -1.0f;
     return mat;
 }
 
 void Transformations::translateShape(std::vector<Point2D>& shape, float tx, float ty) {
-    // TODO: Get translation matrix and apply to all points in shape
+    Matrix3x3 t = getTranslationMatrix(tx, ty);
+    for (auto& pt : shape) pt = t * pt;
 }
 
 void Transformations::scaleShape(std::vector<Point2D>& shape, float sx, float sy) {
-    // TODO: Get scaling matrix and apply to all points in shape
+    Matrix3x3 s = getScalingMatrix(sx, sy);
+    for (auto& pt : shape) pt = s * pt;
 }
 
 void Transformations::rotateShapeAroundOrigin(std::vector<Point2D>& shape, float angleRadians) {
-    // TODO: Get rotation matrix and apply to all points in shape
+    Matrix3x3 r = getRotationMatrix(angleRadians);
+    for (auto& pt : shape) pt = r * pt;
 }
 
 void Transformations::rotateShapeAroundPivot(std::vector<Point2D>& shape, const Point2D& pivot, float angleRadians) {
-    // TODO: Define a composite matrix: Translate(-pivot) -> Rotate(angle) -> Translate(pivot)
-    // TODO: Apply the composite matrix to all points in shape
+    Matrix3x3 t1 = getTranslationMatrix(-pivot.x, -pivot.y);
+    Matrix3x3 r = getRotationMatrix(angleRadians);
+    Matrix3x3 t2 = getTranslationMatrix(pivot.x, pivot.y);
+    Matrix3x3 comp = t2 * r * t1;
+    for (auto& pt : shape) pt = comp * pt;
+}
+
+void Transformations::mirrorShape(std::vector<Point2D>& shape, bool horizontal, bool vertical) {
+    float cx = 0, cy = 0;
+    for (auto& pt : shape) { cx += pt.x; cy += pt.y; }
+    cx /= shape.size(); cy /= shape.size();
+
+    Matrix3x3 t1 = getTranslationMatrix(-cx, -cy);
+    Matrix3x3 r = getReflectionMatrix(horizontal, vertical);
+    Matrix3x3 t2 = getTranslationMatrix(cx, cy);
+    Matrix3x3 comp = t2 * r * t1;
+    for (auto& pt : shape) pt = comp * pt;
+}
+
+void Transformations::generateRectangle(std::vector<Point2D>& out, float cx, float cy, float w, float h) {
+    float hw = w / 2, hh = h / 2;
+    out.push_back(Point2D(cx - hw, cy - hh));
+    out.push_back(Point2D(cx + hw, cy - hh));
+    out.push_back(Point2D(cx + hw, cy + hh));
+    out.push_back(Point2D(cx - hw, cy + hh));
+}
+
+void Transformations::generateCircle(std::vector<Point2D>& out, float cx, float cy, float radius, int segments) {
+    for (int i = 0; i < segments; ++i) {
+        float a = 6.2831853f * i / segments;
+        out.push_back(Point2D(cx + radius * std::cos(a), cy + radius * std::sin(a)));
+    }
+}
+
+void Transformations::generateTriangle(std::vector<Point2D>& out, float cx, float cy, float size) {
+    float r = size / 2;
+    out.push_back(Point2D(cx, cy + r));
+    out.push_back(Point2D(cx - 0.866f * r, cy - 0.5f * r));
+    out.push_back(Point2D(cx + 0.866f * r, cy - 0.5f * r));
+}
+
+void Transformations::generateRegularPolygon(std::vector<Point2D>& out, float cx, float cy, float radius, int sides) {
+    for (int i = 0; i < sides; ++i) {
+        float a = 6.2831853f * i / sides - 1.5707963f;
+        out.push_back(Point2D(cx + radius * std::cos(a), cy + radius * std::sin(a)));
+    }
+}
+
+void Transformations::generateStar(std::vector<Point2D>& out, float cx, float cy, float outerRadius, float innerRadius) {
+    for (int i = 0; i < 5; ++i) {
+        float a = 6.2831853f * i / 5 - 1.5707963f;
+        float a2 = a + 3.1415926f / 5;
+        out.push_back(Point2D(cx + outerRadius * std::cos(a), cy + outerRadius * std::sin(a)));
+        out.push_back(Point2D(cx + innerRadius * std::cos(a2), cy + innerRadius * std::sin(a2)));
+    }
 }
