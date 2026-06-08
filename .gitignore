@@ -20,16 +20,8 @@
 *.lai
 *.la
 *.a
-*.lib
 
 # Executables
 *.exe
 *.out
 *.app
-
-# IDEs
-.vscode/
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/settings.json
-!.vscode/c_cpp_properties.json
