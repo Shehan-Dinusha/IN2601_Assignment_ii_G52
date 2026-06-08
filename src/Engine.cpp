@@ -1,9 +1,24 @@
-#include "../include/Engine.h"
+#include "Engine.h"
+#include "InputHandler.h"
+#define IMGUI_IMPL_OPENGL_LOADER_GLAD
+#include "glad/glad.h"
+#include <GLFW/glfw3.h>
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include <iostream>
 
 Engine::Engine(int width, int height, const std::string& title)
     : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title),
-      worldMinX(-1.0f), worldMaxX(1.0f), worldMinY(-1.0f), worldMaxY(1.0f) {
+      worldMinX(-100.0f), worldMaxX(100.0f), worldMinY(-100.0f), worldMaxY(100.0f),
+      selectedShape(nullptr),
+      activeTool(TOOL_SELECT), activeShapeType(SHAPE_RECTANGLE), shapeSize(30.0f),
+      showGrid(true), isDrawing(false), isPanning(false), isDragging(false),
+      lastMouseX(0.0), lastMouseY(0.0), dragStartX(0.0f), dragStartY(0.0f), dragScaleFactor(1.0f), dragAngle(0.0f),
+      renderer(*this), uiBuilder(*this) {
+    fillColor[0] = 0.6f; fillColor[1] = 0.6f; fillColor[2] = 1.0f;
+    strokeColor[0] = 1.0f; strokeColor[1] = 1.0f; strokeColor[2] = 1.0f;
+    InputHandler::engine = this;
 }
 
 Engine::~Engine() {
@@ -16,10 +31,9 @@ bool Engine::initialize() {
         return false;
     }
 
-    // Configure GLFW for OpenGL
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 
     window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
     if (!window) {
@@ -31,20 +45,28 @@ bool Engine::initialize() {
     glfwMakeContextCurrent(window);
     glfwSetWindowUserPointer(window, this);
 
-    // Set callbacks
-    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-    glfwSetCursorPosCallback(window, cursorPositionCallback);
-    glfwSetMouseButtonCallback(window, mouseButtonCallback);
-    glfwSetScrollCallback(window, scrollCallback);
+    glfwSetFramebufferSizeCallback(window, InputHandler::framebufferSizeCallback);
+    glfwSetCursorPosCallback(window, InputHandler::cursorPositionCallback);
+    glfwSetMouseButtonCallback(window, InputHandler::mouseButtonCallback);
+    glfwSetScrollCallback(window, InputHandler::scrollCallback);
+    glfwSetWindowFocusCallback(window, InputHandler::windowFocusCallback);
+    glfwSetCursorEnterCallback(window, InputHandler::cursorEnterCallback);
+    glfwSetKeyCallback(window, InputHandler::keyCallback);
 
-    // Initialize GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return false;
     }
 
-    // Set initial viewport
     setViewport(windowWidth, windowHeight);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, false);
+    ImGui_ImplOpenGL3_Init("#version 330");
 
     return true;
 }
@@ -57,30 +79,36 @@ void Engine::run() {
         float deltaTime = currentFrameTime - lastFrameTime;
         lastFrameTime = currentFrameTime;
 
-        // Process inputs
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window, true);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
         update(deltaTime);
-        render();
+        renderer.render();
+        uiBuilder.buildUI();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 }
 
+// ============================================================
+// MEMBER 4 TODO: Implement update(deltaTime)
+// Called every frame before render(). Handle continuous logic:
+// blinking selections, movement animations, etc.
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Engine::update(float deltaTime) {
-    // TODO: Implement application logic update (e.g., animations, state changes)
-}
-
-void Engine::render() {
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // TODO: Implement rendering of the CAD shapes using world and viewport coordinates
+    (void)deltaTime;
 }
 
 void Engine::shutdown() {
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     if (window) {
         glfwDestroyWindow(window);
         window = nullptr;
@@ -89,42 +117,12 @@ void Engine::shutdown() {
 }
 
 void Engine::setWorldWindow(float minX, float maxX, float minY, float maxY) {
-    worldMinX = minX;
-    worldMaxX = maxX;
-    worldMinY = minY;
-    worldMaxY = maxY;
+    worldMinX = minX; worldMaxX = maxX;
+    worldMinY = minY; worldMaxY = maxY;
 }
 
 void Engine::setViewport(int width, int height) {
     windowWidth = width;
     windowHeight = height;
     glViewport(0, 0, width, height);
-}
-
-void Engine::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
-    Engine* engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
-    if (engine) {
-        engine->setViewport(width, height);
-    }
-}
-
-void Engine::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
-    Engine* engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
-    if (engine) {
-        // TODO: Handle mouse movement (e.g., panning, drawing line preview)
-    }
-}
-
-void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    Engine* engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
-    if (engine) {
-        // TODO: Handle mouse clicks (e.g., creating points, selecting shapes)
-    }
-}
-
-void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    Engine* engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
-    if (engine) {
-        // TODO: Handle scroll for zooming (update world window size/scale)
-    }
 }

@@ -1,12 +1,29 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
 #include <string>
+#include <vector>
+#include "Shape.h"
+#include "Renderer.h"
+#include "UIBuilder.h"
+
+struct GLFWwindow;
 
 class Engine {
+    friend class Renderer;
+    friend class UIBuilder;
+    friend class InputHandler;
+
 public:
+    enum Tool {
+        TOOL_SELECT, TOOL_DRAW_POLYGON, TOOL_DRAW_LINE, TOOL_PEN,
+        TOOL_FILL, TOOL_MOVE, TOOL_ROTATE, TOOL_SCALE, TOOL_SHAPE
+    };
+    enum ShapeType {
+        SHAPE_RECTANGLE, SHAPE_CIRCLE, SHAPE_TRIANGLE,
+        SHAPE_PENTAGON, SHAPE_HEXAGON, SHAPE_STAR
+    };
+
     Engine(int width, int height, const std::string& title);
     ~Engine();
 
@@ -14,10 +31,7 @@ public:
     void run();
     void shutdown();
 
-    // World Window coordinates for panning/zooming
     void setWorldWindow(float minX, float maxX, float minY, float maxY);
-    
-    // Viewport coordinates
     void setViewport(int width, int height);
 
 private:
@@ -26,19 +40,31 @@ private:
     int windowHeight;
     std::string windowTitle;
 
-    // Viewport and World coordinates
     float worldMinX, worldMaxX;
     float worldMinY, worldMaxY;
 
-    // Rendering loop
-    void update(float deltaTime);
-    void render();
+    std::vector<Shape> shapes;
+    Shape* selectedShape;
+    std::vector<Point2D> currentShape;
 
-    // GLFW Callbacks
-    static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
-    static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
-    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    Tool activeTool;
+    ShapeType activeShapeType;
+    float shapeSize;
+    float fillColor[3];
+    float strokeColor[3];
+    bool showGrid;
+    bool isDrawing;
+    bool isPanning;
+    bool isDragging;
+    double lastMouseX, lastMouseY;
+    float dragStartX, dragStartY;
+    float dragScaleFactor;
+    float dragAngle;
+
+    Renderer renderer;
+    UIBuilder uiBuilder;
+
+    void update(float deltaTime);
 };
 
-#endif // ENGINE_H
+#endif
