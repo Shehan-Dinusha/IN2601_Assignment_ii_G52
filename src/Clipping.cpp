@@ -244,16 +244,72 @@ bool Clipping::liangBarskyClipLine(Point2D& p1, Point2D& p2, const BoundingBox& 
     return true; // placeholder — always says visible
 }
 
-// ============================================================
-// MEMBER 1 TODO: Implement sutherlandHodgmanClipPolygon
-// Clip polygon against 4 edges (left->right->bottom->top) sequentially.
-// For each edge: iterate polygon edges, keep inside vertices, compute intersections.
-// Returns false if fully clipped away.
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
+static void clipAgainstEdge(
+    const std::vector<Point2D>& poly,
+    std::vector<Point2D>& out,
+    const BoundingBox& box,
+    int edge
+) {
+    out.clear();
+    if (poly.empty()) return;
+    size_t n = poly.size();
+
+    auto isInside = [&](const Point2D& p) -> bool {
+        switch (edge) {
+            case 0: return p.x >= box.xMin;
+            case 1: return p.x <= box.xMax;
+            case 2: return p.y >= box.yMin;
+            case 3: return p.y <= box.yMax;
+            default: return false;
+        }
+    };
+
+    auto intersect = [&](const Point2D& a, const Point2D& b) -> Point2D {
+        Point2D p;
+        if (edge == 0 || edge == 1) {
+            float x = (edge == 0) ? box.xMin : box.xMax;
+            p.y = a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
+            p.x = x;
+        } else {
+            float y = (edge == 2) ? box.yMin : box.yMax;
+            p.x = a.x + (b.x - a.x) * (y - a.y) / (b.y - a.y);
+            p.y = y;
+        }
+        p.w = 1.0f;
+        return p;
+    };
+
+    for (size_t i = 0; i < n; ++i) {
+        const Point2D& cur = poly[i];
+        const Point2D& nxt = poly[(i + 1) % n];
+
+        bool curInside = isInside(cur);
+        bool nxtInside = isInside(nxt);
+
+        if (curInside) {
+            out.push_back(cur);
+            if (!nxtInside)
+                out.push_back(intersect(cur, nxt));
+        } else if (nxtInside) {
+            out.push_back(intersect(cur, nxt));
+            out.push_back(nxt);
+        }
+    }
+}
+
 bool Clipping::sutherlandHodgmanClipPolygon(std::vector<Point2D>& polygon, const BoundingBox& box) {
-    (void)polygon; (void)box;
-    return true; // placeholder — always says visible
+    if (polygon.size() < 3) return false;
+
+    std::vector<Point2D> output = polygon;
+
+    for (int edge = 0; edge < 4; ++edge) {
+        std::vector<Point2D> input = output;
+        clipAgainstEdge(input, output, box, edge);
+        if (output.size() < 3) return false;
+    }
+
+    polygon = output;
+    return true;
 }
 
 // ============================================================

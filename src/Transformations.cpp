@@ -12,8 +12,14 @@ Matrix3x3::Matrix3x3() {
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 Matrix3x3 Matrix3x3::operator*(const Matrix3x3& other) const {
-    (void)other;
-    return Matrix3x3(); // placeholder — return identity
+    Matrix3x3 result;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) {
+            result.m[i][j] = 0.0f;
+            for (int k = 0; k < 3; ++k)
+                result.m[i][j] += m[i][k] * other.m[k][j];
+        }
+    return result;
 }
 
 // ============================================================
@@ -21,7 +27,11 @@ Matrix3x3 Matrix3x3::operator*(const Matrix3x3& other) const {
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 Point2D Matrix3x3::operator*(const Point2D& point) const {
-    return point; // placeholder — return point unchanged
+    Point2D result;
+    result.x = m[0][0] * point.x + m[0][1] * point.y + m[0][2] * point.w;
+    result.y = m[1][0] * point.x + m[1][1] * point.y + m[1][2] * point.w;
+    result.w = m[2][0] * point.x + m[2][1] * point.y + m[2][2] * point.w;
+    return result;
 }
 
 // ============================================================
@@ -30,8 +40,10 @@ Point2D Matrix3x3::operator*(const Point2D& point) const {
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 Matrix3x3 Transformations::getTranslationMatrix(float tx, float ty) {
-    (void)tx; (void)ty;
-    return Matrix3x3(); // placeholder — return identity
+    Matrix3x3 mat;
+    mat.m[0][2] = tx;
+    mat.m[1][2] = ty;
+    return mat;
 }
 
 // ============================================================
@@ -40,8 +52,10 @@ Matrix3x3 Transformations::getTranslationMatrix(float tx, float ty) {
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 Matrix3x3 Transformations::getScalingMatrix(float sx, float sy) {
-    (void)sx; (void)sy;
-    return Matrix3x3(); // placeholder — return identity
+    Matrix3x3 mat;
+    mat.m[0][0] = sx;
+    mat.m[1][1] = sy;
+    return mat;
 }
 
 // ============================================================
@@ -51,8 +65,11 @@ Matrix3x3 Transformations::getScalingMatrix(float sx, float sy) {
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 Matrix3x3 Transformations::getRotationMatrix(float angleRadians) {
-    (void)angleRadians;
-    return Matrix3x3(); // placeholder — return identity
+    Matrix3x3 mat;
+    float c = std::cos(angleRadians), s = std::sin(angleRadians);
+    mat.m[0][0] = c; mat.m[0][1] = -s;
+    mat.m[1][0] = s; mat.m[1][1] =  c;
+    return mat;
 }
 
 Matrix3x3 Transformations::getReflectionMatrix(bool mirrorX, bool mirrorY) {
