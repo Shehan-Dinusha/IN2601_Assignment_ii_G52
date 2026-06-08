@@ -95,6 +95,12 @@ void Engine::run() {
     }
 }
 
+// ============================================================
+// MEMBER 4 TODO: Implement update(deltaTime)
+// Called every frame before render(). Handle continuous logic:
+// blinking selections, movement animations, etc.
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Engine::update(float deltaTime) {
     (void)deltaTime;
 }

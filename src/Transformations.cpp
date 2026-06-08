@@ -7,45 +7,52 @@ Matrix3x3::Matrix3x3() {
             m[i][j] = (i == j) ? 1.0f : 0.0f;
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement Matrix3x3 matrix multiplication
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 Matrix3x3 Matrix3x3::operator*(const Matrix3x3& other) const {
-    Matrix3x3 result;
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j) {
-            result.m[i][j] = 0.0f;
-            for (int k = 0; k < 3; ++k)
-                result.m[i][j] += m[i][k] * other.m[k][j];
-        }
-    return result;
+    (void)other;
+    return Matrix3x3(); // placeholder — return identity
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement Matrix3x3 * Point2D multiplication
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 Point2D Matrix3x3::operator*(const Point2D& point) const {
-    Point2D result;
-    result.x = m[0][0] * point.x + m[0][1] * point.y + m[0][2] * point.w;
-    result.y = m[1][0] * point.x + m[1][1] * point.y + m[1][2] * point.w;
-    result.w = m[2][0] * point.x + m[2][1] * point.y + m[2][2] * point.w;
-    return result;
+    return point; // placeholder — return point unchanged
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement getTranslationMatrix
+// Returns: [1 0 tx; 0 1 ty; 0 0 1]
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 Matrix3x3 Transformations::getTranslationMatrix(float tx, float ty) {
-    Matrix3x3 mat;
-    mat.m[0][2] = tx;
-    mat.m[1][2] = ty;
-    return mat;
+    (void)tx; (void)ty;
+    return Matrix3x3(); // placeholder — return identity
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement getScalingMatrix
+// Returns: [sx 0 0; 0 sy 0; 0 0 1]
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 Matrix3x3 Transformations::getScalingMatrix(float sx, float sy) {
-    Matrix3x3 mat;
-    mat.m[0][0] = sx;
-    mat.m[1][1] = sy;
-    return mat;
+    (void)sx; (void)sy;
+    return Matrix3x3(); // placeholder — return identity
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement getRotationMatrix
+// Returns: [cos -sin 0; sin cos 0; 0 0 1] (counter-clockwise)
+// Use std::cos and std::sin from <cmath>
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 Matrix3x3 Transformations::getRotationMatrix(float angleRadians) {
-    Matrix3x3 mat;
-    float c = std::cos(angleRadians), s = std::sin(angleRadians);
-    mat.m[0][0] = c; mat.m[0][1] = -s;
-    mat.m[1][0] = s; mat.m[1][1] =  c;
-    return mat;
+    (void)angleRadians;
+    return Matrix3x3(); // placeholder — return identity
 }
 
 Matrix3x3 Transformations::getReflectionMatrix(bool mirrorX, bool mirrorY) {
@@ -55,27 +62,45 @@ Matrix3x3 Transformations::getReflectionMatrix(bool mirrorX, bool mirrorY) {
     return mat;
 }
 
+// ============================================================
+// MEMBER 2 TODO: Implement translateShape
+// Use getTranslationMatrix(tx, ty) and apply to all vertices
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Transformations::translateShape(std::vector<Point2D>& shape, float tx, float ty) {
-    Matrix3x3 t = getTranslationMatrix(tx, ty);
-    for (auto& pt : shape) pt = t * pt;
+    (void)shape; (void)tx; (void)ty;
+    // TODO
 }
 
+// ============================================================
+// MEMBER 2 TODO: Implement scaleShape
+// Use getScalingMatrix(sx, sy) and apply to all vertices
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Transformations::scaleShape(std::vector<Point2D>& shape, float sx, float sy) {
-    Matrix3x3 s = getScalingMatrix(sx, sy);
-    for (auto& pt : shape) pt = s * pt;
+    (void)shape; (void)sx; (void)sy;
+    // TODO
 }
 
+// ============================================================
+// MEMBER 2 TODO: Implement rotateShapeAroundOrigin
+// Use getRotationMatrix(angleRadians) and apply to all vertices
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Transformations::rotateShapeAroundOrigin(std::vector<Point2D>& shape, float angleRadians) {
-    Matrix3x3 r = getRotationMatrix(angleRadians);
-    for (auto& pt : shape) pt = r * pt;
+    (void)shape; (void)angleRadians;
+    // TODO
 }
 
+// ============================================================
+// MEMBER 2 TODO: Implement rotateShapeAroundPivot
+// Compose: translate to origin → rotate → translate back
+// Matrix chain: t2 * r * t1 applied to each vertex
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Transformations::rotateShapeAroundPivot(std::vector<Point2D>& shape, const Point2D& pivot, float angleRadians) {
-    Matrix3x3 t1 = getTranslationMatrix(-pivot.x, -pivot.y);
-    Matrix3x3 r = getRotationMatrix(angleRadians);
-    Matrix3x3 t2 = getTranslationMatrix(pivot.x, pivot.y);
-    Matrix3x3 comp = t2 * r * t1;
-    for (auto& pt : shape) pt = comp * pt;
+    (void)shape; (void)pivot; (void)angleRadians;
+    // TODO
 }
 
 void Transformations::mirrorShape(std::vector<Point2D>& shape, bool horizontal, bool vertical) {

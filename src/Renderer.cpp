@@ -8,6 +8,16 @@
 
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
+// ============================================================
+// MEMBER 4 TODO: Implement render()
+// 1. Clear background, set up orthographic projection
+// 2. Draw grid (drawGrid())
+// 3. For each shape: clip to viewport (sutherlandHodgmanClipPolygon),
+//    fill with scanLineFill, draw stroke outline
+// 4. Draw in-progress shape preview if isDrawing
+// 5. Selected shape renders in gold (1.0, 0.8, 0.2)
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Renderer::render() {
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -20,58 +30,8 @@ void Renderer::render() {
 
     drawGrid();
 
-    BoundingBox clipBox(engine.worldMinX, engine.worldMaxX, engine.worldMinY, engine.worldMaxY);
-
-    for (auto& shape : engine.shapes) {
-        std::vector<Point2D> clipped = shape.vertices;
-        Clipping::sutherlandHodgmanClipPolygon(clipped, clipBox);
-
-        if (shape.closed && clipped.size() >= 3) {
-            glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
-            scanLineFill(clipped);
-        }
-
-        glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-        if (&shape == engine.selectedShape) {
-            glColor3f(1.0f, 0.8f, 0.2f);
-        }
-        glBegin(shape.closed ? GL_LINE_LOOP : GL_LINE_STRIP);
-        for (auto& pt : clipped) glVertex2f(pt.x, pt.y);
-        glEnd();
-    }
-
-    if (engine.isDrawing && !engine.currentShape.empty()) {
-        if (engine.activeTool == Engine::TOOL_DRAW_LINE) {
-            double mx, my;
-            glfwGetCursorPos(engine.window, &mx, &my);
-            float wx, wy;
-            screenToWorld(mx, my, wx, wy);
-
-            glColor3f(0.3f, 0.8f, 0.3f);
-            glBegin(GL_LINE_STRIP);
-            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
-            glVertex2f(wx, wy);
-            glEnd();
-
-            glPointSize(6.0f);
-            glColor3f(0.5f, 1.0f, 0.5f);
-            glBegin(GL_POINTS);
-            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
-            glEnd();
-        } else {
-            glColor3f(0.5f, 1.0f, 0.5f);
-            glBegin(GL_LINE_STRIP);
-            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
-            if (engine.currentShape.size() >= 3)
-                glVertex2f(engine.currentShape[0].x, engine.currentShape[0].y);
-            glEnd();
-
-            glPointSize(6.0f);
-            glBegin(GL_POINTS);
-            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
-            glEnd();
-        }
-    }
+    // TODO: render shapes from engine.shapes
+    // TODO: render in-progress drawing preview
 }
 
 void Renderer::drawGrid() {
@@ -95,40 +55,17 @@ void Renderer::drawGrid() {
     glEnd();
 }
 
+// ============================================================
+// MEMBER 4 TODO: Implement scanLineFill
+// 1. Find yMin/yMax of polygon
+// 2. For each integer scan line: compute edge x-intersections,
+//    sort, draw horizontal segments between even-odd pairs
+// Use glBegin(GL_LINES) / glEnd()
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
-    if (polygon.size() < 3) return;
-
-    float yMin = polygon[0].y, yMax = polygon[0].y;
-    for (auto& pt : polygon) {
-        if (pt.y < yMin) yMin = pt.y;
-        if (pt.y > yMax) yMax = pt.y;
-    }
-
-    int iyMin = static_cast<int>(std::ceil(yMin));
-    int iyMax = static_cast<int>(std::floor(yMax));
-    size_t n = polygon.size();
-
-    glBegin(GL_LINES);
-    for (int y = iyMin; y <= iyMax; ++y) {
-        float scanY = static_cast<float>(y);
-        std::vector<float> xs;
-
-        for (size_t i = 0; i < n; ++i) {
-            float xi = polygon[i].x, yi = polygon[i].y;
-            float xj = polygon[(i + 1) % n].x, yj = polygon[(i + 1) % n].y;
-            if ((yi > scanY) != (yj > scanY)) {
-                xs.push_back(xi + (scanY - yi) * (xj - xi) / (yj - yi));
-            }
-        }
-
-        if (xs.size() < 2) continue;
-        std::sort(xs.begin(), xs.end());
-        for (size_t i = 0; i + 1 < xs.size(); i += 2) {
-            glVertex2f(xs[i], scanY);
-            glVertex2f(xs[i + 1], scanY);
-        }
-    }
-    glEnd();
+    (void)polygon;
+    // TODO
 }
 
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {

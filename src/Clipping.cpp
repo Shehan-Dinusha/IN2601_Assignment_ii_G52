@@ -208,34 +208,61 @@ bool Clipping::findEnclosedRegion(std::vector<Point2D>& out, const Point2D& clic
     return true;
 }
 
+// ============================================================
+// MEMBER 5 TODO: Implement computeRegionCode
+// Compute 4-bit outcode:
+//   INSIDE=0  LEFT=1 (x<box.xMin)  RIGHT=2 (x>box.xMax)
+//   BOTTOM=4 (y<box.yMin)  TOP=8 (y>box.yMax)
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 int Clipping::computeRegionCode(float x, float y, const BoundingBox& box) {
     int code = INSIDE;
+    // TODO
     return code;
 }
 
+// ============================================================
+// MEMBER 5 TODO: Implement cohenSutherlandClipLine
+// Use computeRegionCode for both endpoints.
+// Loop: trivial accept (both 0) -> accept; trivial reject (code1&code2 !=0) -> reject;
+// otherwise clip outside endpoint to edge, update code, repeat.
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 bool Clipping::cohenSutherlandClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
-    return true;
+    (void)p1; (void)p2; (void)box;
+    return true; // placeholder — always says visible
 }
 
+// ============================================================
+// MEMBER 5 TODO: Implement liangBarskyClipLine
+// Parametric line clipping. Compute p[] and q[] for 4 edges,
+// track tEnter/tExit. Clip if tEnter > tExit.
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 bool Clipping::liangBarskyClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
-    return true;
+    (void)p1; (void)p2; (void)box;
+    return true; // placeholder — always says visible
 }
 
+// ============================================================
+// MEMBER 1 TODO: Implement sutherlandHodgmanClipPolygon
+// Clip polygon against 4 edges (left->right->bottom->top) sequentially.
+// For each edge: iterate polygon edges, keep inside vertices, compute intersections.
+// Returns false if fully clipped away.
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 bool Clipping::sutherlandHodgmanClipPolygon(std::vector<Point2D>& polygon, const BoundingBox& box) {
-    return true;
+    (void)polygon; (void)box;
+    return true; // placeholder — always says visible
 }
 
+// ============================================================
+// MEMBER 3 TODO: Implement isPointInPolygon (even-odd rule ray casting)
+// Cast horizontal ray rightward from point, count edge crossings.
+// Return true if odd (inside), false if even (outside).
+// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// ============================================================
 bool Clipping::isPointInPolygon(const Point2D& point, const std::vector<Point2D>& polygon) {
-    int crossings = 0;
-    size_t n = polygon.size();
-    for (size_t i = 0; i < n; ++i) {
-        float xi = polygon[i].x, yi = polygon[i].y;
-        float xj = polygon[(i + 1) % n].x, yj = polygon[(i + 1) % n].y;
-        if ((yi > point.y) != (yj > point.y)) {
-            float x_intersect = (xj - xi) * (point.y - yi) / (yj - yi) + xi;
-            if (point.x < x_intersect)
-                crossings++;
-        }
-    }
-    return (crossings % 2) == 1;
+    (void)point; (void)polygon;
+    return false; // placeholder — always says not inside
 }
