@@ -319,6 +319,16 @@ bool Clipping::sutherlandHodgmanClipPolygon(std::vector<Point2D>& polygon, const
 // See COMPLETE_PROJECT_REFERENCE.md for full implementation
 // ============================================================
 bool Clipping::isPointInPolygon(const Point2D& point, const std::vector<Point2D>& polygon) {
-    (void)point; (void)polygon;
-    return false; // placeholder — always says not inside
+    int crossings = 0;
+    size_t n = polygon.size();
+    for (size_t i = 0; i < n; ++i) {
+        float xi = polygon[i].x, yi = polygon[i].y;
+        float xj = polygon[(i + 1) % n].x, yj = polygon[(i + 1) % n].y;
+        if ((yi > point.y) != (yj > point.y)) {
+            float x_intersect = (xj - xi) * (point.y - yi) / (yj - yi) + xi;
+            if (point.x < x_intersect)
+                crossings++;
+        }
+    }
+    return (crossings % 2) == 1;
 }

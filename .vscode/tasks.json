@@ -17,7 +17,6 @@
         "${workspaceFolder}/vendor/glad/glad.c",
         "${workspaceFolder}/vendor/imgui/*.cpp",
         "-lglfw3dll",
-        "-lfreeglut",
         "-lopengl32",
         "-lglu32",
         "-o",
