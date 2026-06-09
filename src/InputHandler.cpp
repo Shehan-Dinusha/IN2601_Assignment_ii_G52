@@ -27,7 +27,54 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
     Engine* e = static_cast<Engine*>(glfwGetWindowUserPointer(window));
     if (!e) return;
 
-    // TODO: handle panning (e->isPanning), dragging (e->isDragging), pen drawing
+    if (e->isPanning) {
+        double dx = (e->lastMouseX - xpos) / e->windowWidth;
+        double dy = (ypos - e->lastMouseY) / e->windowHeight;
+        float rx = e->worldMaxX - e->worldMinX;
+        float ry = e->worldMaxY - e->worldMinY;
+        e->worldMinX += dx * rx; e->worldMaxX += dx * rx;
+        e->worldMinY += dy * ry; e->worldMaxY += dy * ry;
+        e->lastMouseX = xpos; e->lastMouseY = ypos;
+        return;
+    }
+
+    if (e->isDragging && e->selectedShape) {
+        float wx, wy;
+        e->renderer.screenToWorld(xpos, ypos, wx, wy);
+
+        if (e->activeTool == Engine::TOOL_MOVE) {
+            float dx = wx - e->dragStartX;
+            float dy = wy - e->dragStartY;
+            e->selectedShape->translate(dx, dy);
+            e->dragStartX = wx;
+            e->dragStartY = wy;
+        } else if (e->activeTool == Engine::TOOL_ROTATE) {
+            float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
+            Point2D c = e->selectedShape->centroid();
+            e->selectedShape->rotate(angle, c);
+            e->dragAngle += angle * 180.0f / 3.14159265f;
+            if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
+            if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
+        } else if (e->activeTool == Engine::TOOL_SCALE) {
+            float s = 1.0f + static_cast<float>(xpos - e->lastMouseX) * 0.01f;
+            Point2D c = e->selectedShape->centroid();
+            Matrix3x3 t1 = Transformations::getTranslationMatrix(-c.x, -c.y);
+            Matrix3x3 sc = Transformations::getScalingMatrix(s, s);
+            Matrix3x3 t2 = Transformations::getTranslationMatrix(c.x, c.y);
+            Matrix3x3 comp = t2 * sc * t1;
+            for (auto& pt : e->selectedShape->vertices) pt = comp * pt;
+            e->dragScaleFactor *= s;
+        }
+
+        e->lastMouseX = xpos; e->lastMouseY = ypos;
+        return;
+    }
+
+    if (e->isDrawing && e->activeTool == Engine::TOOL_PEN) {
+        float wx, wy;
+        e->renderer.screenToWorld(xpos, ypos, wx, wy);
+        e->currentShape.push_back(Point2D(wx, wy, 1.0f));
+    }
 
     e->lastMouseX = xpos;
     e->lastMouseY = ypos;
@@ -54,9 +101,149 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
     float wx, wy;
     e->renderer.screenToWorld(xpos, ypos, wx, wy);
 
-    // TODO: dispatch per-tool logic in switch(e->activeTool)
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+        e->isPanning = (action == GLFW_PRESS);
+        return;
+    }
 
-    (void)button; (void)action; (void)mods; (void)wx; (void)wy;
+    auto finishShape = [&]() {
+        if (e->currentShape.size() >= 2) {
+            Shape s;
+            s.vertices = e->currentShape;
+            s.closed = false;
+            s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
+            s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
+            e->shapes.push_back(s);
+        }
+        e->isDrawing = false;
+        e->currentShape.clear();
+    };
+
+    switch (e->activeTool) {
+        case Engine::TOOL_SELECT:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                e->selectedShape = nullptr;
+                Point2D pt(wx, wy, 1.0f);
+                for (auto& s : e->shapes)
+                    if (s.contains(pt)) { e->selectedShape = &s; break; }
+            }
+            break;
+
+        case Engine::TOOL_DRAW_POLYGON:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                e->currentShape.push_back(Point2D(wx, wy, 1.0f));
+                e->isDrawing = true;
+            } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+                if (e->currentShape.size() >= 3) {
+                    Shape s;
+                    s.vertices = e->currentShape;
+                    s.closed = true;
+                    s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
+                    s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
+                    e->shapes.push_back(s);
+                }
+                e->isDrawing = false;
+                e->currentShape.clear();
+            }
+            break;
+
+        case Engine::TOOL_DRAW_LINE:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                e->currentShape.push_back(Point2D(wx, wy, 1.0f));
+                e->isDrawing = true;
+            } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+                if (!e->currentShape.empty()) {
+                    e->currentShape.pop_back();
+                    if (e->currentShape.empty()) e->isDrawing = false;
+                }
+            }
+            break;
+
+        case Engine::TOOL_PEN:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                e->isDrawing = true;
+                e->currentShape.clear();
+                e->currentShape.push_back(Point2D(wx, wy, 1.0f));
+            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+                finishShape();
+            }
+            break;
+
+        case Engine::TOOL_FILL:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                Point2D pt(wx, wy, 1.0f);
+                bool hit = false;
+                for (auto& s : e->shapes)
+                    if (s.contains(pt)) {
+                        s.fill[0] = e->fillColor[0];
+                        s.fill[1] = e->fillColor[1];
+                        s.fill[2] = e->fillColor[2];
+                        s.stroke[0] = e->strokeColor[0];
+                        s.stroke[1] = e->strokeColor[1];
+                        s.stroke[2] = e->strokeColor[2];
+                        hit = true;
+                        break;
+                    }
+                if (!hit) {
+                    std::vector<std::vector<Point2D>> verts;
+                    std::vector<bool> closed;
+                    for (auto& s : e->shapes) {
+                        verts.push_back(s.vertices);
+                        closed.push_back(s.closed);
+                    }
+                    std::vector<Point2D> region;
+                    if (Clipping::findEnclosedRegion(region, pt, verts, closed)) {
+                        Shape s;
+                        s.vertices = region;
+                        s.closed = true;
+                        s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
+                        s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
+                        e->shapes.push_back(s);
+                    }
+                }
+            }
+            break;
+
+        case Engine::TOOL_MOVE:
+        case Engine::TOOL_ROTATE:
+        case Engine::TOOL_SCALE:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                Point2D pt(wx, wy, 1.0f);
+                e->selectedShape = nullptr;
+                for (auto& s : e->shapes)
+                    if (s.contains(pt)) { e->selectedShape = &s; break; }
+                if (e->selectedShape) {
+                    e->isDragging = true;
+                    e->dragStartX = wx;
+                    e->dragStartY = wy;
+                    e->dragScaleFactor = 1.0f;
+                    if (e->activeTool == Engine::TOOL_ROTATE) e->dragAngle = 0.0f;
+                }
+            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+                e->isDragging = false;
+            }
+            break;
+
+        case Engine::TOOL_SHAPE:
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                std::vector<Point2D> verts;
+                float s = e->shapeSize;
+                switch (e->activeShapeType) {
+                    case Engine::SHAPE_RECTANGLE: Transformations::generateRectangle(verts, wx, wy, s, s * 0.75f); break;
+                    case Engine::SHAPE_CIRCLE:    Transformations::generateCircle(verts, wx, wy, s / 2); break;
+                    case Engine::SHAPE_TRIANGLE:  Transformations::generateTriangle(verts, wx, wy, s); break;
+                    case Engine::SHAPE_PENTAGON:  Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 5); break;
+                    case Engine::SHAPE_HEXAGON:   Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 6); break;
+                    case Engine::SHAPE_STAR:      Transformations::generateStar(verts, wx, wy, s / 2, s * 0.2f); break;
+                }
+                Shape shape;
+                shape.vertices = verts;
+                shape.fill[0] = e->fillColor[0]; shape.fill[1] = e->fillColor[1]; shape.fill[2] = e->fillColor[2];
+                shape.stroke[0] = e->strokeColor[0]; shape.stroke[1] = e->strokeColor[1]; shape.stroke[2] = e->strokeColor[2];
+                e->shapes.push_back(shape);
+            }
+            break;
+    }
 }
 
 // ============================================================
@@ -71,8 +258,15 @@ void InputHandler::scrollCallback(GLFWwindow* window, double xoffset, double yof
     Engine* engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
     if (!engine) return;
 
-    // TODO: modify engine->worldMinX/Y, worldMaxX/Y based on scroll direction
-    (void)xoffset; (void)yoffset;
+    float scale = (yoffset > 0) ? 0.9f : 1.1f;
+    float cx = (engine->worldMinX + engine->worldMaxX) * 0.5f;
+    float cy = (engine->worldMinY + engine->worldMaxY) * 0.5f;
+    float hw = (engine->worldMaxX - engine->worldMinX) * 0.5f * scale;
+    float hh = (engine->worldMaxY - engine->worldMinY) * 0.5f * scale;
+    engine->worldMinX = cx - hw;
+    engine->worldMaxX = cx + hw;
+    engine->worldMinY = cy - hh;
+    engine->worldMaxY = cy + hh;
 }
 
 void InputHandler::windowFocusCallback(GLFWwindow* window, int focused) {
@@ -95,6 +289,37 @@ void InputHandler::keyCallback(GLFWwindow* window, int key, int scancode, int ac
     Engine* e = static_cast<Engine*>(glfwGetWindowUserPointer(window));
     if (!e || ImGui::GetIO().WantCaptureKeyboard) return;
 
-    // TODO: keyboard shortcuts, Esc to finish drawing or close window
-    (void)key; (void)scancode; (void)action; (void)mods;
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_ESCAPE) {
+            if (e->isDrawing) {
+                e->isDrawing = false;
+                e->currentShape.clear();
+            } else {
+                glfwSetWindowShouldClose(window, true);
+            }
+            return;
+        }
+
+        // Tool hotkeys (no modifier):
+        if (key == GLFW_KEY_1) { e->activeTool = Engine::TOOL_SELECT; return; }
+        if (key == GLFW_KEY_2) { e->activeTool = Engine::TOOL_DRAW_POLYGON; return; }
+        if (key == GLFW_KEY_3) { e->activeTool = Engine::TOOL_DRAW_LINE; return; }
+        if (key == GLFW_KEY_4) { e->activeTool = Engine::TOOL_PEN; return; }
+        if (key == GLFW_KEY_5) { e->activeTool = Engine::TOOL_FILL; return; }
+        if (key == GLFW_KEY_M) { e->activeTool = Engine::TOOL_MOVE; return; }
+        if (key == GLFW_KEY_R) { e->activeTool = Engine::TOOL_ROTATE; return; }
+        if (key == GLFW_KEY_S && !(mods & GLFW_MOD_CONTROL)) { e->activeTool = Engine::TOOL_SCALE; return; }
+
+        // Delete key
+        if (key == GLFW_KEY_DELETE || key == GLFW_KEY_BACKSPACE) {
+            if (e->selectedShape) {
+                // e->pushUndo(); // Task 4: implement later
+                for (auto it = e->shapes.begin(); it != e->shapes.end(); ++it) {
+                    if (&*it == e->selectedShape) { e->shapes.erase(it); break; }
+                }
+                e->selectedShape = nullptr;
+            }
+            return;
+        }
+    }
 }
