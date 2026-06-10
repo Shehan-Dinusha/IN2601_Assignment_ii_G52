@@ -7,7 +7,7 @@
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
 // TEMPORARY SIMPLE RENDERER
-// Used to display shapes on canvas so transformations can be visually tested.
+// This is only to display shapes and test Member 2 transformations.
 void Renderer::render() {
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -35,7 +35,7 @@ void Renderer::render() {
         // Fill closed shapes
         if (shape.closed && shape.vertices.size() >= 3) {
             if (isSelected) {
-                glColor3f(1.0f, 0.8f, 0.2f);
+                glColor3f(1.0f, 0.8f, 0.2f);   // selected = gold
             } else {
                 glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
             }
@@ -117,6 +117,8 @@ void Renderer::drawGrid() {
     glEnd();
 }
 
+// Temporary fill function.
+// Final scan-line fill is Member 4's responsibility.
 void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
     if (polygon.size() < 3) return;
 
