@@ -30,11 +30,17 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
     if (e->isPanning) {
         double dx = (e->lastMouseX - xpos) / e->windowWidth;
         double dy = (ypos - e->lastMouseY) / e->windowHeight;
+
         float rx = e->worldMaxX - e->worldMinX;
         float ry = e->worldMaxY - e->worldMinY;
-        e->worldMinX += dx * rx; e->worldMaxX += dx * rx;
-        e->worldMinY += dy * ry; e->worldMaxY += dy * ry;
-        e->lastMouseX = xpos; e->lastMouseY = ypos;
+
+        e->worldMinX += dx * rx;
+        e->worldMaxX += dx * rx;
+        e->worldMinY += dy * ry;
+        e->worldMaxY += dy * ry;
+
+        e->lastMouseX = xpos;
+        e->lastMouseY = ypos;
         return;
     }
 
@@ -45,28 +51,53 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         if (e->activeTool == Engine::TOOL_MOVE) {
             float dx = wx - e->dragStartX;
             float dy = wy - e->dragStartY;
+
             e->selectedShape->translate(dx, dy);
+
             e->dragStartX = wx;
             e->dragStartY = wy;
-        } else if (e->activeTool == Engine::TOOL_ROTATE) {
+        }
+        else if (e->activeTool == Engine::TOOL_ROTATE) {
             float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
+
             Point2D c = e->selectedShape->centroid();
             e->selectedShape->rotate(angle, c);
+
             e->dragAngle += angle * 180.0f / 3.14159265f;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
             if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
-        } else if (e->activeTool == Engine::TOOL_SCALE) {
+        }
+        else if (e->activeTool == Engine::TOOL_ROTATE_ORIGIN) {
+            float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
+
+            // Member 2 test/demo:
+            // Rotate selected shape around global origin point (0,0).
+            Transformations::rotateShapeAroundOrigin(e->selectedShape->vertices, angle);
+
+            e->dragAngle += angle * 180.0f / 3.14159265f;
+            if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
+            if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
+        }
+        else if (e->activeTool == Engine::TOOL_SCALE) {
             float s = 1.0f + static_cast<float>(xpos - e->lastMouseX) * 0.01f;
+
             Point2D c = e->selectedShape->centroid();
+
             Matrix3x3 t1 = Transformations::getTranslationMatrix(-c.x, -c.y);
             Matrix3x3 sc = Transformations::getScalingMatrix(s, s);
             Matrix3x3 t2 = Transformations::getTranslationMatrix(c.x, c.y);
+
             Matrix3x3 comp = t2 * sc * t1;
-            for (auto& pt : e->selectedShape->vertices) pt = comp * pt;
+
+            for (auto& pt : e->selectedShape->vertices) {
+                pt = comp * pt;
+            }
+
             e->dragScaleFactor *= s;
         }
 
-        e->lastMouseX = xpos; e->lastMouseY = ypos;
+        e->lastMouseX = xpos;
+        e->lastMouseY = ypos;
         return;
     }
 
@@ -98,6 +129,7 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
 
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
+
     float wx, wy;
     e->renderer.screenToWorld(xpos, ypos, wx, wy);
 
@@ -111,10 +143,15 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             Shape s;
             s.vertices = e->currentShape;
             s.closed = false;
-            s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
-            s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
+            s.fill[0] = e->fillColor[0];
+            s.fill[1] = e->fillColor[1];
+            s.fill[2] = e->fillColor[2];
+            s.stroke[0] = e->strokeColor[0];
+            s.stroke[1] = e->strokeColor[1];
+            s.stroke[2] = e->strokeColor[2];
             e->shapes.push_back(s);
         }
+
         e->isDrawing = false;
         e->currentShape.clear();
     };
@@ -124,8 +161,13 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->selectedShape = nullptr;
                 Point2D pt(wx, wy, 1.0f);
-                for (auto& s : e->shapes)
-                    if (s.contains(pt)) { e->selectedShape = &s; break; }
+
+                for (auto& s : e->shapes) {
+                    if (s.contains(pt)) {
+                        e->selectedShape = &s;
+                        break;
+                    }
+                }
             }
             break;
 
@@ -133,15 +175,21 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->currentShape.push_back(Point2D(wx, wy, 1.0f));
                 e->isDrawing = true;
-            } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+            }
+            else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
                 if (e->currentShape.size() >= 3) {
                     Shape s;
                     s.vertices = e->currentShape;
                     s.closed = true;
-                    s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
-                    s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
+                    s.fill[0] = e->fillColor[0];
+                    s.fill[1] = e->fillColor[1];
+                    s.fill[2] = e->fillColor[2];
+                    s.stroke[0] = e->strokeColor[0];
+                    s.stroke[1] = e->strokeColor[1];
+                    s.stroke[2] = e->strokeColor[2];
                     e->shapes.push_back(s);
                 }
+
                 e->isDrawing = false;
                 e->currentShape.clear();
             }
@@ -151,10 +199,14 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->currentShape.push_back(Point2D(wx, wy, 1.0f));
                 e->isDrawing = true;
-            } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+            }
+            else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
                 if (!e->currentShape.empty()) {
                     e->currentShape.pop_back();
-                    if (e->currentShape.empty()) e->isDrawing = false;
+
+                    if (e->currentShape.empty()) {
+                        e->isDrawing = false;
+                    }
                 }
             }
             break;
@@ -164,7 +216,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 e->isDrawing = true;
                 e->currentShape.clear();
                 e->currentShape.push_back(Point2D(wx, wy, 1.0f));
-            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            }
+            else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
                 finishShape();
             }
             break;
@@ -173,31 +226,43 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 Point2D pt(wx, wy, 1.0f);
                 bool hit = false;
-                for (auto& s : e->shapes)
+
+                for (auto& s : e->shapes) {
                     if (s.contains(pt)) {
+                        s.fill[0] = e->fillColor[0];
+                        s.fill[1] = e->fillColor[1];
+                        s.fill[2] = e->fillColor[2];
+
+                        s.stroke[0] = e->strokeColor[0];
+                        s.stroke[1] = e->strokeColor[1];
+                        s.stroke[2] = e->strokeColor[2];
+
+                        hit = true;
+                        break;
+                    }
+                }
+
+                if (!hit) {
+                    std::vector<std::vector<Point2D>> verts;
+                    std::vector<bool> closed;
+
+                    for (auto& s : e->shapes) {
+                        verts.push_back(s.vertices);
+                        closed.push_back(s.closed);
+                    }
+
+                    std::vector<Point2D> region;
+
+                    if (Clipping::findEnclosedRegion(region, pt, verts, closed)) {
+                        Shape s;
+                        s.vertices = region;
+                        s.closed = true;
                         s.fill[0] = e->fillColor[0];
                         s.fill[1] = e->fillColor[1];
                         s.fill[2] = e->fillColor[2];
                         s.stroke[0] = e->strokeColor[0];
                         s.stroke[1] = e->strokeColor[1];
                         s.stroke[2] = e->strokeColor[2];
-                        hit = true;
-                        break;
-                    }
-                if (!hit) {
-                    std::vector<std::vector<Point2D>> verts;
-                    std::vector<bool> closed;
-                    for (auto& s : e->shapes) {
-                        verts.push_back(s.vertices);
-                        closed.push_back(s.closed);
-                    }
-                    std::vector<Point2D> region;
-                    if (Clipping::findEnclosedRegion(region, pt, verts, closed)) {
-                        Shape s;
-                        s.vertices = region;
-                        s.closed = true;
-                        s.fill[0] = e->fillColor[0]; s.fill[1] = e->fillColor[1]; s.fill[2] = e->fillColor[2];
-                        s.stroke[0] = e->strokeColor[0]; s.stroke[1] = e->strokeColor[1]; s.stroke[2] = e->strokeColor[2];
                         e->shapes.push_back(s);
                     }
                 }
@@ -206,20 +271,32 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
 
         case Engine::TOOL_MOVE:
         case Engine::TOOL_ROTATE:
+        case Engine::TOOL_ROTATE_ORIGIN:
         case Engine::TOOL_SCALE:
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 Point2D pt(wx, wy, 1.0f);
                 e->selectedShape = nullptr;
-                for (auto& s : e->shapes)
-                    if (s.contains(pt)) { e->selectedShape = &s; break; }
+
+                for (auto& s : e->shapes) {
+                    if (s.contains(pt)) {
+                        e->selectedShape = &s;
+                        break;
+                    }
+                }
+
                 if (e->selectedShape) {
                     e->isDragging = true;
                     e->dragStartX = wx;
                     e->dragStartY = wy;
                     e->dragScaleFactor = 1.0f;
-                    if (e->activeTool == Engine::TOOL_ROTATE) e->dragAngle = 0.0f;
+
+                    if (e->activeTool == Engine::TOOL_ROTATE ||
+                        e->activeTool == Engine::TOOL_ROTATE_ORIGIN) {
+                        e->dragAngle = 0.0f;
+                    }
                 }
-            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            }
+            else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
                 e->isDragging = false;
             }
             break;
@@ -228,18 +305,42 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 std::vector<Point2D> verts;
                 float s = e->shapeSize;
+
                 switch (e->activeShapeType) {
-                    case Engine::SHAPE_RECTANGLE: Transformations::generateRectangle(verts, wx, wy, s, s * 0.75f); break;
-                    case Engine::SHAPE_CIRCLE:    Transformations::generateCircle(verts, wx, wy, s / 2); break;
-                    case Engine::SHAPE_TRIANGLE:  Transformations::generateTriangle(verts, wx, wy, s); break;
-                    case Engine::SHAPE_PENTAGON:  Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 5); break;
-                    case Engine::SHAPE_HEXAGON:   Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 6); break;
-                    case Engine::SHAPE_STAR:      Transformations::generateStar(verts, wx, wy, s / 2, s * 0.2f); break;
+                    case Engine::SHAPE_RECTANGLE:
+                        Transformations::generateRectangle(verts, wx, wy, s, s * 0.75f);
+                        break;
+
+                    case Engine::SHAPE_CIRCLE:
+                        Transformations::generateCircle(verts, wx, wy, s / 2);
+                        break;
+
+                    case Engine::SHAPE_TRIANGLE:
+                        Transformations::generateTriangle(verts, wx, wy, s);
+                        break;
+
+                    case Engine::SHAPE_PENTAGON:
+                        Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 5);
+                        break;
+
+                    case Engine::SHAPE_HEXAGON:
+                        Transformations::generateRegularPolygon(verts, wx, wy, s / 2, 6);
+                        break;
+
+                    case Engine::SHAPE_STAR:
+                        Transformations::generateStar(verts, wx, wy, s / 2, s * 0.2f);
+                        break;
                 }
+
                 Shape shape;
                 shape.vertices = verts;
-                shape.fill[0] = e->fillColor[0]; shape.fill[1] = e->fillColor[1]; shape.fill[2] = e->fillColor[2];
-                shape.stroke[0] = e->strokeColor[0]; shape.stroke[1] = e->strokeColor[1]; shape.stroke[2] = e->strokeColor[2];
+                shape.fill[0] = e->fillColor[0];
+                shape.fill[1] = e->fillColor[1];
+                shape.fill[2] = e->fillColor[2];
+                shape.stroke[0] = e->strokeColor[0];
+                shape.stroke[1] = e->strokeColor[1];
+                shape.stroke[2] = e->strokeColor[2];
+
                 e->shapes.push_back(shape);
             }
             break;
@@ -259,10 +360,13 @@ void InputHandler::scrollCallback(GLFWwindow* window, double xoffset, double yof
     if (!engine) return;
 
     float scale = (yoffset > 0) ? 0.9f : 1.1f;
+
     float cx = (engine->worldMinX + engine->worldMaxX) * 0.5f;
     float cy = (engine->worldMinY + engine->worldMaxY) * 0.5f;
+
     float hw = (engine->worldMaxX - engine->worldMinX) * 0.5f * scale;
     float hh = (engine->worldMaxY - engine->worldMinY) * 0.5f * scale;
+
     engine->worldMinX = cx - hw;
     engine->worldMaxX = cx + hw;
     engine->worldMinY = cy - hh;
@@ -300,25 +404,66 @@ void InputHandler::keyCallback(GLFWwindow* window, int key, int scancode, int ac
             return;
         }
 
-        // Tool hotkeys (no modifier):
-        if (key == GLFW_KEY_1) { e->activeTool = Engine::TOOL_SELECT; return; }
-        if (key == GLFW_KEY_2) { e->activeTool = Engine::TOOL_DRAW_POLYGON; return; }
-        if (key == GLFW_KEY_3) { e->activeTool = Engine::TOOL_DRAW_LINE; return; }
-        if (key == GLFW_KEY_4) { e->activeTool = Engine::TOOL_PEN; return; }
-        if (key == GLFW_KEY_5) { e->activeTool = Engine::TOOL_FILL; return; }
-        if (key == GLFW_KEY_M) { e->activeTool = Engine::TOOL_MOVE; return; }
-        if (key == GLFW_KEY_R) { e->activeTool = Engine::TOOL_ROTATE; return; }
-        if (key == GLFW_KEY_S && !(mods & GLFW_MOD_CONTROL)) { e->activeTool = Engine::TOOL_SCALE; return; }
+        // Tool hotkeys without modifier keys
+        if (key == GLFW_KEY_1) {
+            e->activeTool = Engine::TOOL_SELECT;
+            return;
+        }
 
-        // Delete key
+        if (key == GLFW_KEY_2) {
+            e->activeTool = Engine::TOOL_DRAW_POLYGON;
+            return;
+        }
+
+        if (key == GLFW_KEY_3) {
+            e->activeTool = Engine::TOOL_DRAW_LINE;
+            return;
+        }
+
+        if (key == GLFW_KEY_4) {
+            e->activeTool = Engine::TOOL_PEN;
+            return;
+        }
+
+        if (key == GLFW_KEY_5) {
+            e->activeTool = Engine::TOOL_FILL;
+            return;
+        }
+
+        if (key == GLFW_KEY_M) {
+            e->activeTool = Engine::TOOL_MOVE;
+            return;
+        }
+
+        if (key == GLFW_KEY_R && !(mods & GLFW_MOD_CONTROL)) {
+            e->activeTool = Engine::TOOL_ROTATE;
+            return;
+        }
+
+        // O = Rotate around origin
+        if (key == GLFW_KEY_O && !(mods & GLFW_MOD_CONTROL)) {
+            e->activeTool = Engine::TOOL_ROTATE_ORIGIN;
+            return;
+        }
+
+        if (key == GLFW_KEY_S && !(mods & GLFW_MOD_CONTROL)) {
+            e->activeTool = Engine::TOOL_SCALE;
+            return;
+        }
+
+        // Delete selected shape
         if (key == GLFW_KEY_DELETE || key == GLFW_KEY_BACKSPACE) {
             if (e->selectedShape) {
-                // e->pushUndo(); // Task 4: implement later
                 for (auto it = e->shapes.begin(); it != e->shapes.end(); ++it) {
-                    if (&*it == e->selectedShape) { e->shapes.erase(it); break; }
+                    if (&*it == e->selectedShape) {
+                        e->shapes.erase(it);
+                        break;
+                    }
                 }
+
                 e->selectedShape = nullptr;
             }
+
             return;
         }
     }

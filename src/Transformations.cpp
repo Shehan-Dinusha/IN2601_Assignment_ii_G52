@@ -80,44 +80,62 @@ Matrix3x3 Transformations::getReflectionMatrix(bool mirrorX, bool mirrorY) {
 }
 
 // ============================================================
-// MEMBER 2 TODO: Implement translateShape
-// Use getTranslationMatrix(tx, ty) and apply to all vertices
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// MEMBER 2: Implement translateShape
+// Apply translation matrix to every vertex of the shape
 // ============================================================
 void Transformations::translateShape(std::vector<Point2D>& shape, float tx, float ty) {
-    (void)shape; (void)tx; (void)ty;
-    // TODO
+    Matrix3x3 translationMatrix = getTranslationMatrix(tx, ty);
+
+    for (auto& point : shape) {
+        point = translationMatrix * point;
+    }
 }
 
 // ============================================================
-// MEMBER 2 TODO: Implement scaleShape
-// Use getScalingMatrix(sx, sy) and apply to all vertices
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// MEMBER 2: Implement scaleShape
+// Apply scaling matrix to every vertex of the shape
 // ============================================================
 void Transformations::scaleShape(std::vector<Point2D>& shape, float sx, float sy) {
-    (void)shape; (void)sx; (void)sy;
-    // TODO
+    Matrix3x3 scalingMatrix = getScalingMatrix(sx, sy);
+
+    for (auto& point : shape) {
+        point = scalingMatrix * point;
+    }
 }
 
 // ============================================================
-// MEMBER 2 TODO: Implement rotateShapeAroundOrigin
-// Use getRotationMatrix(angleRadians) and apply to all vertices
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// MEMBER 2: Implement rotateShapeAroundOrigin
+// Apply rotation matrix to every vertex of the shape
 // ============================================================
 void Transformations::rotateShapeAroundOrigin(std::vector<Point2D>& shape, float angleRadians) {
-    (void)shape; (void)angleRadians;
-    // TODO
+    Matrix3x3 rotationMatrix = getRotationMatrix(angleRadians);
+
+    for (auto& point : shape) {
+        point = rotationMatrix * point;
+    }
 }
 
 // ============================================================
-// MEMBER 2 TODO: Implement rotateShapeAroundPivot
-// Compose: translate to origin → rotate → translate back
-// Matrix chain: t2 * r * t1 applied to each vertex
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
+// MEMBER 2: Implement rotateShapeAroundPivot
+// Rotate shape around an arbitrary pivot point
+//
+// Steps:
+// 1. Move pivot point to origin
+// 2. Rotate around origin
+// 3. Move pivot point back to original position
+//
+// Composite matrix = Translate Back * Rotate * Translate To Origin
 // ============================================================
 void Transformations::rotateShapeAroundPivot(std::vector<Point2D>& shape, const Point2D& pivot, float angleRadians) {
-    (void)shape; (void)pivot; (void)angleRadians;
-    // TODO
+    Matrix3x3 translateToOrigin = getTranslationMatrix(-pivot.x, -pivot.y);
+    Matrix3x3 rotationMatrix = getRotationMatrix(angleRadians);
+    Matrix3x3 translateBack = getTranslationMatrix(pivot.x, pivot.y);
+
+    Matrix3x3 compositeMatrix = translateBack * rotationMatrix * translateToOrigin;
+
+    for (auto& point : shape) {
+        point = compositeMatrix * point;
+    }
 }
 
 void Transformations::mirrorShape(std::vector<Point2D>& shape, bool horizontal, bool vertical) {
