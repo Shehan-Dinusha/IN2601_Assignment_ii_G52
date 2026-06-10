@@ -16,12 +16,25 @@ class Engine {
 
 public:
     enum Tool {
-        TOOL_SELECT, TOOL_DRAW_POLYGON, TOOL_DRAW_LINE, TOOL_PEN,
-        TOOL_FILL, TOOL_MOVE, TOOL_ROTATE, TOOL_SCALE, TOOL_SHAPE
+        TOOL_SELECT,
+        TOOL_DRAW_POLYGON,
+        TOOL_DRAW_LINE,
+        TOOL_PEN,
+        TOOL_FILL,
+        TOOL_MOVE,
+        TOOL_ROTATE,
+        TOOL_ROTATE_ORIGIN,
+        TOOL_SCALE,
+        TOOL_SHAPE
     };
+
     enum ShapeType {
-        SHAPE_RECTANGLE, SHAPE_CIRCLE, SHAPE_TRIANGLE,
-        SHAPE_PENTAGON, SHAPE_HEXAGON, SHAPE_STAR
+        SHAPE_RECTANGLE,
+        SHAPE_CIRCLE,
+        SHAPE_TRIANGLE,
+        SHAPE_PENTAGON,
+        SHAPE_HEXAGON,
+        SHAPE_STAR
     };
 
     Engine(int width, int height, const std::string& title);
