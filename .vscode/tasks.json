@@ -23,7 +23,10 @@
         "${workspaceFolder}/app.exe"
       ],
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "C:\\msys64\\ucrt64\\bin;${env:PATH}"
+        }
       },
       "problemMatcher": ["$gcc"],
       "group": {

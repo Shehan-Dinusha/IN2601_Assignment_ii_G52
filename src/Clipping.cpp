@@ -208,40 +208,89 @@ bool Clipping::findEnclosedRegion(std::vector<Point2D>& out, const Point2D& clic
     return true;
 }
 
-// ============================================================
-// MEMBER 5 TODO: Implement computeRegionCode
-// Compute 4-bit outcode:
-//   INSIDE=0  LEFT=1 (x<box.xMin)  RIGHT=2 (x>box.xMax)
-//   BOTTOM=4 (y<box.yMin)  TOP=8 (y>box.yMax)
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
 int Clipping::computeRegionCode(float x, float y, const BoundingBox& box) {
     int code = INSIDE;
-    // TODO
+    if (x < box.xMin) code |= LEFT;
+    if (x > box.xMax) code |= RIGHT;
+    if (y < box.yMin) code |= BOTTOM;
+    if (y > box.yMax) code |= TOP;
     return code;
 }
 
-// ============================================================
-// MEMBER 5 TODO: Implement cohenSutherlandClipLine
-// Use computeRegionCode for both endpoints.
-// Loop: trivial accept (both 0) -> accept; trivial reject (code1&code2 !=0) -> reject;
-// otherwise clip outside endpoint to edge, update code, repeat.
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
 bool Clipping::cohenSutherlandClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
-    (void)p1; (void)p2; (void)box;
-    return true; // placeholder — always says visible
+    int code1 = computeRegionCode(p1.x, p1.y, box);
+    int code2 = computeRegionCode(p2.x, p2.y, box);
+    bool accept = false;
+
+    while (true) {
+        if (code1 == 0 && code2 == 0) {
+            accept = true;
+            break;
+        } else if (code1 & code2) {
+            break;
+        } else {
+            int codeOut = (code1 != 0) ? code1 : code2;
+            float x, y;
+
+            if (codeOut & TOP) {
+                x = p1.x + (p2.x - p1.x) * (box.yMax - p1.y) / (p2.y - p1.y);
+                y = box.yMax;
+            } else if (codeOut & BOTTOM) {
+                x = p1.x + (p2.x - p1.x) * (box.yMin - p1.y) / (p2.y - p1.y);
+                y = box.yMin;
+            } else if (codeOut & RIGHT) {
+                y = p1.y + (p2.y - p1.y) * (box.xMax - p1.x) / (p2.x - p1.x);
+                x = box.xMax;
+            } else { // LEFT
+                y = p1.y + (p2.y - p1.y) * (box.xMin - p1.x) / (p2.x - p1.x);
+                x = box.xMin;
+            }
+
+            if (codeOut == code1) {
+                p1.x = x; p1.y = y;
+                code1 = computeRegionCode(p1.x, p1.y, box);
+            } else {
+                p2.x = x; p2.y = y;
+                code2 = computeRegionCode(p2.x, p2.y, box);
+            }
+        }
+    }
+
+    return accept;
 }
 
-// ============================================================
-// MEMBER 5 TODO: Implement liangBarskyClipLine
-// Parametric line clipping. Compute p[] and q[] for 4 edges,
-// track tEnter/tExit. Clip if tEnter > tExit.
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
 bool Clipping::liangBarskyClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
-    (void)p1; (void)p2; (void)box;
-    return true; // placeholder — always says visible
+    float dx = p2.x - p1.x;
+    float dy = p2.y - p1.y;
+
+    float p[4] = { -dx, dx, -dy, dy };
+    float q[4] = { p1.x - box.xMin, box.xMax - p1.x, p1.y - box.yMin, box.yMax - p1.y };
+
+    float tEnter = 0.0f;
+    float tExit = 1.0f;
+
+    for (int i = 0; i < 4; ++i) {
+        if (p[i] == 0.0f) {
+            if (q[i] < 0.0f) return false;
+        } else {
+            float t = q[i] / p[i];
+            if (p[i] < 0.0f)
+                tEnter = std::max(tEnter, t);
+            else
+                tExit = std::min(tExit, t);
+        }
+    }
+
+    if (tEnter > tExit) return false;
+
+    float x1_clip = p1.x + tEnter * dx;
+    float y1_clip = p1.y + tEnter * dy;
+    float x2_clip = p1.x + tExit * dx;
+    float y2_clip = p1.y + tExit * dy;
+
+    p1.x = x1_clip; p1.y = y1_clip;
+    p2.x = x2_clip; p2.y = y2_clip;
+    return true;
 }
 
 static void clipAgainstEdge(
