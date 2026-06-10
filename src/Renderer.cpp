@@ -1,37 +1,96 @@
 #include "Renderer.h"
 #include "Engine.h"
-#include "Clipping.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include <algorithm>
 #include <cmath>
 
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
-// ============================================================
-// MEMBER 4 TODO: Implement render()
-// 1. Clear background, set up orthographic projection
-// 2. Draw grid (drawGrid())
-// 3. For each shape: clip to viewport (sutherlandHodgmanClipPolygon),
-//    fill with scanLineFill, draw stroke outline
-// 4. Draw in-progress shape preview if isDrawing
-// 5. Selected shape renders in gold (1.0, 0.8, 0.2)
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
+// TEMPORARY SIMPLE RENDERER
+// Used to display shapes on canvas so transformations can be visually tested.
 void Renderer::render() {
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(engine.worldMinX, engine.worldMaxX, engine.worldMinY, engine.worldMaxY, -1.0, 1.0);
+    glOrtho(
+        engine.worldMinX,
+        engine.worldMaxX,
+        engine.worldMinY,
+        engine.worldMaxY,
+        -1.0,
+        1.0
+    );
+
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
     drawGrid();
 
-    // TODO: render shapes from engine.shapes
-    // TODO: render in-progress drawing preview
+    // Draw all saved shapes
+    for (const auto& shape : engine.shapes) {
+        bool isSelected = (&shape == engine.selectedShape);
+
+        // Fill closed shapes
+        if (shape.closed && shape.vertices.size() >= 3) {
+            if (isSelected) {
+                glColor3f(1.0f, 0.8f, 0.2f);
+            } else {
+                glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
+            }
+
+            glBegin(GL_POLYGON);
+            for (const auto& pt : shape.vertices) {
+                glVertex2f(pt.x, pt.y);
+            }
+            glEnd();
+        }
+
+        // Draw outline
+        if (isSelected) {
+            glColor3f(1.0f, 0.8f, 0.2f);
+            glLineWidth(3.0f);
+        } else {
+            glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
+            glLineWidth(2.0f);
+        }
+
+        if (shape.closed) {
+            glBegin(GL_LINE_LOOP);
+        } else {
+            glBegin(GL_LINE_STRIP);
+        }
+
+        for (const auto& pt : shape.vertices) {
+            glVertex2f(pt.x, pt.y);
+        }
+
+        glEnd();
+        glLineWidth(1.0f);
+    }
+
+    // Draw in-progress shape preview
+    if (!engine.currentShape.empty()) {
+        glColor3f(engine.strokeColor[0], engine.strokeColor[1], engine.strokeColor[2]);
+        glLineWidth(2.0f);
+
+        glBegin(GL_LINE_STRIP);
+        for (const auto& pt : engine.currentShape) {
+            glVertex2f(pt.x, pt.y);
+        }
+        glEnd();
+
+        glPointSize(5.0f);
+        glBegin(GL_POINTS);
+        for (const auto& pt : engine.currentShape) {
+            glVertex2f(pt.x, pt.y);
+        }
+        glEnd();
+
+        glLineWidth(1.0f);
+        glPointSize(1.0f);
+    }
 }
 
 void Renderer::drawGrid() {
@@ -44,28 +103,28 @@ void Renderer::drawGrid() {
     float y0 = std::floor(engine.worldMinY / step) * step;
 
     glBegin(GL_LINES);
+
     for (float x = x0; x <= engine.worldMaxX; x += step) {
         glVertex2f(x, engine.worldMinY);
         glVertex2f(x, engine.worldMaxY);
     }
+
     for (float y = y0; y <= engine.worldMaxY; y += step) {
         glVertex2f(engine.worldMinX, y);
         glVertex2f(engine.worldMaxX, y);
     }
+
     glEnd();
 }
 
-// ============================================================
-// MEMBER 4 TODO: Implement scanLineFill
-// 1. Find yMin/yMax of polygon
-// 2. For each integer scan line: compute edge x-intersections,
-//    sort, draw horizontal segments between even-odd pairs
-// Use glBegin(GL_LINES) / glEnd()
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
 void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
-    (void)polygon;
-    // TODO
+    if (polygon.size() < 3) return;
+
+    glBegin(GL_POLYGON);
+    for (const auto& pt : polygon) {
+        glVertex2f(pt.x, pt.y);
+    }
+    glEnd();
 }
 
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {
