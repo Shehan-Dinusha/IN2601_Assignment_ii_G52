@@ -1,41 +1,102 @@
-# Computer Graphics Assignment II (IN2601)
+# 2D Vector CAD Editor — IN2601 Computer Graphics Assignment II
 
-This repository contains the OpenGL project for the IN2601 Computer Graphics Assignment II. It is pre-configured to build and run easily within Visual Studio Code.
+An interactive 2D vector graphics editor built with C++17, OpenGL (immediate mode), GLFW, and Dear ImGui. Users can draw, select, transform, fill, and manage vector shapes on a zoomable/pannable canvas with grid snapping and full undo/redo support.
 
-## Prerequisites
+## Features
 
-To build and run this project, you need the following installed on your system:
+| Category | What you can do |
+|----------|----------------|
+| **Draw** | Polygon (click vertices, right-click finish), Line (click vertices, right-click undo last point, Enter = finish), Pen (freehand click-drag), 6 predefined shapes (Rectangle, Circle, Triangle, Pentagon, Hexagon, Star) |
+| **Select** | Click to select a shape (highlights gold), or drag a selection box on empty canvas to pick the first shape whose centroid falls inside |
+| **Transform** | Move, Rotate (about centroid), Rotate around Origin, Uniform Scale — all via click-drag on canvas |
+| **Fill / Stroke** | Fill tool click to recolor a shape or create an enclosed region from intersecting segments; color editors in the UI panel |
+| **Mirror / Delete** | Mirror Horizontal / Vertical about centroid from UI; Delete key or Delete button |
+| **Undo / Redo** | Ctrl+Z / Ctrl+Y, unlimited undo/redo stacks (snapshots of entire shape state) |
+| **Save / Load** | `.cad` text format via File → Save (Ctrl+S) / Open (Ctrl+O) |
+| **Grid** | Toggleable 10-unit grid; Snap to Grid snaps vertex placement to nearest 10-unit multiple |
+| **Pan / Zoom** | Middle-mouse drag to pan, scroll to zoom in/out |
+| **Workspace** | Clear All, Reset Zoom |
 
-- **Visual Studio Code** with the **C/C++ Extension** installed.
-- **MinGW-w64** (or any other GCC compiler) installed.
-- Ensure that the path to your compiler's `bin` directory (e.g., `C:\msys64\mingw64\bin` or `C:\mingw\bin`) is added to your Windows `PATH` environment variable.
+## Quick Start
 
-## Setup Instructions
+### Prerequisites
 
-1. Clone this repository to your local machine.
-2. Open the cloned folder in Visual Studio Code.
-3. The `.vscode` folder is already included, which contains the build configurations.
+- **MinGW-w64** (GCC with C++17 support) — add its `bin` directory (e.g. `C:\msys64\ucrt64\bin`) to your system `PATH` so `g++` is accessible from any terminal
+- **Visual Studio Code** (optional, build task preconfigured)
 
-## How to Build
+### Build
 
-We have configured a VS Code build task for this project.
+**VS Code:** Press **Ctrl+Shift+B** (uses `.vscode/tasks.json`).
 
-1. In Visual Studio Code, press **Ctrl+Shift+B** (or navigate to **Terminal > Run Build Task**).
-2. This will compile the project and generate an executable named `app.exe` in the root directory.
-
-_Note: If building fails because `g++` is not recognized, please ensure your system `PATH` is set up correctly, or edit the `"command"` path in `.vscode/tasks.json` to point directly to your `g++.exe`._
-
-## How to Run
-
-After a successful build, you can run the application directly from the VS Code terminal:
-
+**Command line:**
 ```bash
-./app.exe
+g++ -g -std=c++17 -Iinclude -Ivendor/glad -Ivendor/glfw -Ivendor/imgui -Llib src/*.cpp vendor/glad/glad.c vendor/imgui/*.cpp -lglfw3dll -lcomdlg32 -lopengl32 -lglu32 -o app.exe
 ```
 
-## Folder Structure
+> If `g++` is not recognized, add your MinGW `bin` directory to `PATH` or update the compiler path in `.vscode/tasks.json`.
 
-- `src/` - Contains all `.cpp` and source files.
-- `include/` - Contains required headers (GLAD, GLFW).
-- `lib/` - Contains pre-compiled libraries used for linking.
-- `.vscode/` - VS Code specific configuration for building and IntelliSense.
+### Run
+
+```bash
+app.exe
+```
+
+> **Important:** `glfw3.dll` must be in the same directory as `app.exe`. It is already at the project root and in `lib/`. Close `app.exe` before rebuilding (otherwise you'll get a "Permission denied" error).
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| `1` | Select tool |
+| `2` | Polygon tool |
+| `3` | Line tool |
+| `4` | Pen tool |
+| `5` | Fill tool |
+| `M` | Move tool |
+| `R` | Rotate tool (about centroid) |
+| `O` | Rotate around Origin tool |
+| `S` | Scale tool |
+| `Ctrl+Z / Ctrl+Y` | Undo / Redo |
+| `Ctrl+S / Ctrl+O` | Save / Open `.cad` file |
+| `Del / Backspace` | Delete selected shape |
+| `Enter` | Finish line drawing (save current line as shape) |
+| `Esc` | Cancel drawing (or exit if nothing drawing) |
+| `Right-click` | Undo last point (Line tool) / Finish polygon (Polygon tool) |
+| **Middle-drag** | Pan canvas |
+| **Scroll** | Zoom in/out |
+
+## Project Structure
+
+```
+├── src/              Source files (.cpp)
+│   ├── main.cpp
+│   ├── Engine.cpp         Core state machine & lifecycle
+│   ├── Renderer.cpp       OpenGL draw calls (scan-line fill, grid, selection box)
+│   ├── InputHandler.cpp   GLFW callbacks (mouse, keyboard, window)
+│   ├── UIBuilder.cpp      Dear ImGui UI (menus, tool buttons, panels, status bar)
+│   ├── Clipping.cpp       Algorithms: Sutherland-Hodgman, Cohen-Sutherland, Liang-Barsky, point-in-polygon, enclosed region
+│   ├── Transformations.cpp Matrix ops, shape transforms, shape generators
+│   └── Shape.cpp          Shape convenience methods (delegates to Clipping/Transformations)
+├── include/          Headers (.h)
+├── vendor/           Third-party: GLAD, GLFW, Dear ImGui
+├── lib/              Pre-compiled libraries (glfw3.dll, etc.)
+├── .vscode/          VS Code build task config
+├── AGENTS.md         AI agent reference (build, architecture, conventions)
+└── MemberTasks.md    Task assignment per team member
+```
+
+## Architecture
+
+| Class | Role |
+|-------|------|
+| `Engine` | Central state machine — owns all data (shapes, selection, tools, colors, undo stacks). Holds `Renderer` and `UIBuilder` instances. |
+| `Renderer` | OpenGL immediate-mode drawing — projection, clipping, fill, stroke, grid, selection box. Reads Engine state. |
+| `InputHandler` | Static GLFW callbacks that update Engine state. |
+| `UIBuilder` | Dear ImGui panels and menus that read/write Engine state. |
+| `Shape` | Vertex data + convenience methods (`centroid`, `contains`, `translate`, `rotate`, `mirror`). |
+| `Clipping` | Static geometry algorithms. |
+| `Transformations` | Static 3x3 homogeneous matrix ops and shape generators. |
+
+## Member Task Division
+
+See `MemberTasks.md` for a complete breakdown of which team member owns which function across all source files.

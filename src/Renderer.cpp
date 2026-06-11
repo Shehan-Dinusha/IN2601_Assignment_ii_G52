@@ -9,8 +9,15 @@
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
 void Renderer::render() {
+    int canvasX = static_cast<int>(engine.panelWidth);
+    int canvasW = engine.windowWidth - canvasX;
+    glViewport(canvasX, 0, canvasW, engine.windowHeight);
+
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -80,6 +87,29 @@ void Renderer::render() {
             glEnd();
         }
     }
+
+    if (engine.isSelecting) {
+        float minX = std::min(engine.selBoxX1, engine.selBoxX2);
+        float maxX = std::max(engine.selBoxX1, engine.selBoxX2);
+        float minY = std::min(engine.selBoxY1, engine.selBoxY2);
+        float maxY = std::max(engine.selBoxY1, engine.selBoxY2);
+
+        glColor4f(0.3f, 0.6f, 1.0f, 0.15f);
+        glBegin(GL_QUADS);
+        glVertex2f(minX, minY);
+        glVertex2f(maxX, minY);
+        glVertex2f(maxX, maxY);
+        glVertex2f(minX, maxY);
+        glEnd();
+
+        glColor3f(0.3f, 0.6f, 1.0f);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(minX, minY);
+        glVertex2f(maxX, minY);
+        glVertex2f(maxX, maxY);
+        glVertex2f(minX, maxY);
+        glEnd();
+    }
 }
 
 void Renderer::drawGrid() {
@@ -143,6 +173,8 @@ void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
 }
 
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {
-    worldX = engine.worldMinX + (screenX / engine.windowWidth) * (engine.worldMaxX - engine.worldMinX);
-    worldY = engine.worldMaxY - (screenY / engine.windowHeight) * (engine.worldMaxY - engine.worldMinY);
+    float canvasX = static_cast<float>(screenX) - engine.panelWidth;
+    float canvasW = engine.windowWidth - engine.panelWidth;
+    worldX = engine.worldMinX + (canvasX / canvasW) * (engine.worldMaxX - engine.worldMinX);
+    worldY = engine.worldMaxY - (static_cast<float>(screenY) / engine.windowHeight) * (engine.worldMaxY - engine.worldMinY);
 }

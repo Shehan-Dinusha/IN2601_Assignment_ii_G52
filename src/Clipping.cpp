@@ -361,12 +361,7 @@ bool Clipping::sutherlandHodgmanClipPolygon(std::vector<Point2D>& polygon, const
     return true;
 }
 
-// ============================================================
-// MEMBER 3 TODO: Implement isPointInPolygon (even-odd rule ray casting)
-// Cast horizontal ray rightward from point, count edge crossings.
-// Return true if odd (inside), false if even (outside).
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
+// Even-odd ray casting: cast horizontal ray, return true if odd crossings
 bool Clipping::isPointInPolygon(const Point2D& point, const std::vector<Point2D>& polygon) {
     int crossings = 0;
     size_t n = polygon.size();

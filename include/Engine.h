@@ -47,6 +47,14 @@ public:
     void setWorldWindow(float minX, float maxX, float minY, float maxY);
     void setViewport(int width, int height);
 
+    void pushUndo();
+    void undo();
+    void redo();
+    void saveShapes(const char* filename);
+    void loadShapes(const char* filename);
+    void saveWithDialog();
+    void openWithDialog();
+
 private:
     GLFWwindow* window;
     int windowWidth;
@@ -73,6 +81,15 @@ private:
     float dragStartX, dragStartY;
     float dragScaleFactor;
     float dragAngle;
+
+    std::vector<std::vector<Shape>> undoStack;
+    std::vector<std::vector<Shape>> redoStack;
+
+    bool isSelecting;
+    float selBoxX1, selBoxY1, selBoxX2, selBoxY2;
+    bool snapToGridEnabled;
+    float panelWidth;
+    char currentFilePath[260];
 
     Renderer renderer;
     UIBuilder uiBuilder;
