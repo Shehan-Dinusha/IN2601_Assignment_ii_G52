@@ -7,6 +7,10 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <iostream>
+#include <cstdio>
+#include <cstring>
+#include <windows.h>
+#include <commdlg.h>
 
 Engine::Engine(int width, int height, const std::string& title)
     : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title),
@@ -15,6 +19,8 @@ Engine::Engine(int width, int height, const std::string& title)
       activeTool(TOOL_SELECT), activeShapeType(SHAPE_RECTANGLE), shapeSize(30.0f),
       showGrid(true), isDrawing(false), isPanning(false), isDragging(false),
       lastMouseX(0.0), lastMouseY(0.0), dragStartX(0.0f), dragStartY(0.0f), dragScaleFactor(1.0f), dragAngle(0.0f),
+      isSelecting(false), selBoxX1(0.0f), selBoxY1(0.0f), selBoxX2(0.0f), selBoxY2(0.0f), snapToGridEnabled(true),
+      panelWidth(195.0f), currentFilePath{0},
       renderer(*this), uiBuilder(*this) {
     fillColor[0] = 0.6f; fillColor[1] = 0.6f; fillColor[2] = 1.0f;
     strokeColor[0] = 1.0f; strokeColor[1] = 1.0f; strokeColor[2] = 1.0f;
@@ -95,14 +101,103 @@ void Engine::run() {
     }
 }
 
-// ============================================================
-// MEMBER 4 TODO: Implement update(deltaTime)
-// Called every frame before render(). Handle continuous logic:
-// blinking selections, movement animations, etc.
-// See COMPLETE_PROJECT_REFERENCE.md for full implementation
-// ============================================================
+// Per-frame update placeholder (continuous logic, animations, etc.)
 void Engine::update(float deltaTime) {
     (void)deltaTime;
+}
+
+void Engine::pushUndo() {
+    undoStack.push_back(shapes);
+    redoStack.clear();
+}
+
+void Engine::undo() {
+    if (undoStack.empty()) return;
+    redoStack.push_back(shapes);
+    shapes = undoStack.back();
+    undoStack.pop_back();
+    selectedShape = nullptr;
+}
+
+void Engine::redo() {
+    if (redoStack.empty()) return;
+    undoStack.push_back(shapes);
+    shapes = redoStack.back();
+    redoStack.pop_back();
+    selectedShape = nullptr;
+}
+
+void Engine::saveShapes(const char* filename) {
+    FILE* f = fopen(filename, "w");
+    if (!f) return;
+    fprintf(f, "%zu\n", shapes.size());
+    for (auto& s : shapes) {
+        fprintf(f, "%zu %d\n", s.vertices.size(), s.closed ? 1 : 0);
+        fprintf(f, "%f %f %f\n", s.fill[0], s.fill[1], s.fill[2]);
+        fprintf(f, "%f %f %f\n", s.stroke[0], s.stroke[1], s.stroke[2]);
+        for (auto& pt : s.vertices)
+            fprintf(f, "%f %f\n", pt.x, pt.y);
+    }
+    fclose(f);
+}
+
+void Engine::loadShapes(const char* filename) {
+    FILE* f = fopen(filename, "r");
+    if (!f) return;
+    size_t count;
+    if (fscanf(f, "%zu", &count) != 1) { fclose(f); return; }
+    shapes.clear();
+    selectedShape = nullptr;
+    currentShape.clear();
+    isDrawing = false;
+    for (size_t i = 0; i < count; ++i) {
+        Shape s;
+        size_t vertCount;
+        int closedVal;
+        if (fscanf(f, "%zu %d", &vertCount, &closedVal) != 2) break;
+        s.closed = (closedVal != 0);
+        if (fscanf(f, "%f %f %f", &s.fill[0], &s.fill[1], &s.fill[2]) != 3) break;
+        if (fscanf(f, "%f %f %f", &s.stroke[0], &s.stroke[1], &s.stroke[2]) != 3) break;
+        s.vertices.resize(vertCount);
+        for (size_t j = 0; j < vertCount; ++j) {
+            if (fscanf(f, "%f %f", &s.vertices[j].x, &s.vertices[j].y) != 2) break;
+            s.vertices[j].w = 1.0f;
+        }
+        shapes.push_back(s);
+    }
+    fclose(f);
+}
+
+void Engine::saveWithDialog() {
+    OPENFILENAMEA ofn = {};
+    char path[260] = {};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = nullptr;
+    ofn.lpstrFilter = "CAD Files\0*.cad\0All Files\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+    ofn.lpstrDefExt = "cad";
+    if (GetSaveFileNameA(&ofn)) {
+        strcpy(currentFilePath, path);
+        saveShapes(path);
+    }
+}
+
+void Engine::openWithDialog() {
+    OPENFILENAMEA ofn = {};
+    char path[260] = {};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = nullptr;
+    ofn.lpstrFilter = "CAD Files\0*.cad\0All Files\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    ofn.lpstrDefExt = "cad";
+    if (GetOpenFileNameA(&ofn)) {
+        strcpy(currentFilePath, path);
+        loadShapes(path);
+    }
 }
 
 void Engine::shutdown() {

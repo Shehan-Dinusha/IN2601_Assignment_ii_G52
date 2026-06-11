@@ -14,6 +14,9 @@ void UIBuilder::buildUI() {
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Save", "Ctrl+S")) engine.saveWithDialog();
+            if (ImGui::MenuItem("Open", "Ctrl+O")) engine.openWithDialog();
+            ImGui::Separator();
             if (ImGui::MenuItem("Clear All")) {
                 engine.shapes.clear();
                 engine.currentShape.clear();
@@ -25,16 +28,28 @@ void UIBuilder::buildUI() {
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", "Ctrl+Z")) engine.undo();
+            if (ImGui::MenuItem("Redo", "Ctrl+Y")) engine.redo();
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem("Grid", NULL, &engine.showGrid);
+            ImGui::MenuItem("Snap to Grid", NULL, &engine.snapToGridEnabled);
             if (ImGui::MenuItem("Reset Zoom")) engine.setWorldWindow(-100.0f, 100.0f, -100.0f, 100.0f);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Help")) {
+            ImGui::Text("Shortcuts:");
+            ImGui::Text("  Ctrl+Z=Undo  Ctrl+Y=Redo  Ctrl+S=Save  Ctrl+O=Open");
+            ImGui::Text("  1=Select  2=Polygon  3=Line  4=Pen  5=Fill");
+            ImGui::Text("  M=Move  R=Rotate  O=Rot Origin  S=Scale  Del=Delete  Enter=Finish Line");
+            ImGui::Separator();
             ImGui::Text("Select: Click to select a shape");
             ImGui::Text("Polygon: Left-click = vertex, Right-click = finish");
-            ImGui::Text("Line: Left-click = vertex, Right-click = undo last point, Esc = finish");
+            ImGui::Text("Line: Left-click = vertex, Right-click = undo last point, Enter = finish");
             ImGui::Text("Pen: Click-drag to draw freehand");
             ImGui::Text("Fill: Click an object to fill it (fill + stroke color)");
             ImGui::Text("Move/Rotate/Scale: Select, then click-drag");
@@ -48,9 +63,8 @@ void UIBuilder::buildUI() {
         ImGui::EndMainMenuBar();
     }
 
-    float panelW = 195.0f;
     ImGui::SetNextWindowPos(ImVec2(0, menuHeight));
-    ImGui::SetNextWindowSize(ImVec2(panelW, engine.windowHeight - menuHeight));
+    ImGui::SetNextWindowSize(ImVec2(engine.panelWidth, engine.windowHeight - menuHeight));
     ImGui::Begin("Tools", nullptr,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
@@ -142,6 +156,7 @@ void UIBuilder::buildUI() {
         }
 
         if (ImGui::Button("Delete", ImVec2(-1, 26))) {
+            engine.pushUndo();
             for (auto it = engine.shapes.begin(); it != engine.shapes.end(); ++it) {
                 if (&*it == engine.selectedShape) {
                     engine.shapes.erase(it);
@@ -150,6 +165,7 @@ void UIBuilder::buildUI() {
             }
             engine.selectedShape = nullptr;
         }
+
     } else {
         ImGui::TextDisabled("No selection");
     }
@@ -170,8 +186,8 @@ void UIBuilder::buildUI() {
         ? labels[engine.activeTool]
         : "?";
 
-    ImGui::SetNextWindowPos(ImVec2(panelW, engine.windowHeight - 32));
-    ImGui::SetNextWindowSize(ImVec2(engine.windowWidth - panelW, 32));
+    ImGui::SetNextWindowPos(ImVec2(engine.panelWidth, engine.windowHeight - 32));
+    ImGui::SetNextWindowSize(ImVec2(engine.windowWidth - engine.panelWidth, 32));
 
     ImGui::Begin("StatusBar", nullptr,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
