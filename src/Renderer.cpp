@@ -1,13 +1,13 @@
 #include "Renderer.h"
 #include "Engine.h"
+#include "Clipping.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <cmath>
+#include <algorithm>
 
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
-// TEMPORARY SIMPLE RENDERER
-// This is only to display shapes and test Member 2 transformations.
 void Renderer::render() {
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -28,68 +28,57 @@ void Renderer::render() {
 
     drawGrid();
 
-    // Draw all saved shapes
-    for (const auto& shape : engine.shapes) {
-        bool isSelected = (&shape == engine.selectedShape);
+    BoundingBox clipBox(engine.worldMinX, engine.worldMaxX, engine.worldMinY, engine.worldMaxY);
 
-        // Fill closed shapes
-        if (shape.closed && shape.vertices.size() >= 3) {
-            if (isSelected) {
-                glColor3f(1.0f, 0.8f, 0.2f);   // selected = gold
-            } else {
-                glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
-            }
+    for (auto& shape : engine.shapes) {
+        std::vector<Point2D> clipped = shape.vertices;
+        Clipping::sutherlandHodgmanClipPolygon(clipped, clipBox);
 
-            glBegin(GL_POLYGON);
-            for (const auto& pt : shape.vertices) {
-                glVertex2f(pt.x, pt.y);
-            }
-            glEnd();
+        if (shape.closed && clipped.size() >= 3) {
+            glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
+            scanLineFill(clipped);
         }
 
-        // Draw outline
-        if (isSelected) {
+        glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
+        if (&shape == engine.selectedShape) {
             glColor3f(1.0f, 0.8f, 0.2f);
-            glLineWidth(3.0f);
-        } else {
-            glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-            glLineWidth(2.0f);
         }
-
-        if (shape.closed) {
-            glBegin(GL_LINE_LOOP);
-        } else {
-            glBegin(GL_LINE_STRIP);
-        }
-
-        for (const auto& pt : shape.vertices) {
-            glVertex2f(pt.x, pt.y);
-        }
-
+        glBegin(shape.closed ? GL_LINE_LOOP : GL_LINE_STRIP);
+        for (auto& pt : clipped) glVertex2f(pt.x, pt.y);
         glEnd();
-        glLineWidth(1.0f);
     }
 
-    // Draw in-progress shape preview
-    if (!engine.currentShape.empty()) {
-        glColor3f(engine.strokeColor[0], engine.strokeColor[1], engine.strokeColor[2]);
-        glLineWidth(2.0f);
+    if (engine.isDrawing && !engine.currentShape.empty()) {
+        if (engine.activeTool == Engine::TOOL_DRAW_LINE) {
+            double mx, my;
+            glfwGetCursorPos(engine.window, &mx, &my);
+            float wx, wy;
+            screenToWorld(mx, my, wx, wy);
 
-        glBegin(GL_LINE_STRIP);
-        for (const auto& pt : engine.currentShape) {
-            glVertex2f(pt.x, pt.y);
+            glColor3f(0.3f, 0.8f, 0.3f);
+            glBegin(GL_LINE_STRIP);
+            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
+            glVertex2f(wx, wy);
+            glEnd();
+
+            glPointSize(6.0f);
+            glColor3f(0.5f, 1.0f, 0.5f);
+            glBegin(GL_POINTS);
+            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
+            glEnd();
+        } else {
+            glColor3f(0.5f, 1.0f, 0.5f);
+            glBegin(GL_LINE_STRIP);
+            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
+            if (engine.currentShape.size() >= 3)
+                glVertex2f(engine.currentShape[0].x, engine.currentShape[0].y);
+            glEnd();
+
+            glPointSize(6.0f);
+            glBegin(GL_POINTS);
+            for (auto& pt : engine.currentShape) glVertex2f(pt.x, pt.y);
+            glEnd();
         }
-        glEnd();
-
-        glPointSize(5.0f);
-        glBegin(GL_POINTS);
-        for (const auto& pt : engine.currentShape) {
-            glVertex2f(pt.x, pt.y);
-        }
-        glEnd();
-
-        glLineWidth(1.0f);
-        glPointSize(1.0f);
     }
 }
 
@@ -117,14 +106,38 @@ void Renderer::drawGrid() {
     glEnd();
 }
 
-// Temporary fill function.
-// Final scan-line fill is Member 4's responsibility.
 void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
     if (polygon.size() < 3) return;
 
-    glBegin(GL_POLYGON);
-    for (const auto& pt : polygon) {
-        glVertex2f(pt.x, pt.y);
+    float yMin = polygon[0].y, yMax = polygon[0].y;
+    for (auto& pt : polygon) {
+        if (pt.y < yMin) yMin = pt.y;
+        if (pt.y > yMax) yMax = pt.y;
+    }
+
+    int iyMin = static_cast<int>(std::ceil(yMin));
+    int iyMax = static_cast<int>(std::floor(yMax));
+    size_t n = polygon.size();
+
+    glBegin(GL_LINES);
+    for (int y = iyMin; y <= iyMax; ++y) {
+        float scanY = static_cast<float>(y);
+        std::vector<float> xs;
+
+        for (size_t i = 0; i < n; ++i) {
+            float xi = polygon[i].x, yi = polygon[i].y;
+            float xj = polygon[(i + 1) % n].x, yj = polygon[(i + 1) % n].y;
+            if ((yi > scanY) != (yj > scanY)) {
+                xs.push_back(xi + (scanY - yi) * (xj - xi) / (yj - yi));
+            }
+        }
+
+        if (xs.size() < 2) continue;
+        std::sort(xs.begin(), xs.end());
+        for (size_t i = 0; i + 1 < xs.size(); i += 2) {
+            glVertex2f(xs[i], scanY);
+            glVertex2f(xs[i + 1], scanY);
+        }
     }
     glEnd();
 }
