@@ -129,7 +129,6 @@ new features and infrastructure are divided equally on top.
 - `Renderer::render()` — full frame: viewport offset for sidebar, clear, projection, grid, shape loop (clip + fill + stroke + selection highlight + in-progress preview + selection box)
 - `Renderer::drawGrid()` — 10-unit grid lines
 - `Renderer::scanLineFill(polygon)` — scan-line polygon fill
-- `Renderer::screenToWorld(screenX, screenY, worldX, worldY)` — coordinate conversion
 
 ### State Declarations (Engine.h)
 - All private member fields (shapes, selectedShape, tools, colors, drag state, undo/redo stacks, selection box, snap flag, `panelWidth`, `currentFilePath[260]`)
@@ -138,12 +137,20 @@ new features and infrastructure are divided equally on top.
 
 ---
 
-## Member 5 — UI & Tools
+## Member 5 — Line Clipping, Coordinate Mapping & UI
 
 **234224D — Pamindu Piyumaka**
 
-**File:** `UIBuilder.cpp`
-**Category:** Dear ImGui user interface, all panels, menus, controls
+**Files:** `UIBuilder.cpp`, `Clipping.cpp`, `Renderer.cpp`
+**Category:** Line clipping algorithms, viewport coordinate mapping, user interface
+
+### Line Clipping (Clipping.cpp)
+- `Clipping::computeRegionCode(x, y, box)` — 4-bit outcodes for Cohen-Sutherland
+- `Clipping::cohenSutherlandClipLine(p1, p2, box)` — region-code line clipping
+- `Clipping::liangBarskyClipLine(p1, p2, box)` — parametric line clipping
+
+### Coordinate Mapping (Renderer.cpp)
+- `Renderer::screenToWorld(screenX, screenY, worldX, worldY)` — viewport-to-world coordinate transform
 
 ### UI Layout (UIBuilder.cpp)
 - `UIBuilder::UIBuilder(engine)` — constructor
