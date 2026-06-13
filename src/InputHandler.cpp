@@ -7,6 +7,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include <cmath>
+#include <algorithm>
 
 Engine* InputHandler::engine = nullptr;
 
@@ -39,7 +40,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         return;
     }
 
-    if (e->isDragging && e->selectedShape) {
+    if (e->isDragging && !e->selectedShapes.empty()) {
         float wx, wy;
         e->renderer.screenToWorld(xpos, ypos, wx, wy);
 
@@ -47,7 +48,8 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
             float dx = wx - e->dragStartX;
             float dy = wy - e->dragStartY;
 
-            e->selectedShape->translate(dx, dy);
+            for (int idx : e->selectedShapes)
+                e->shapes[idx].translate(dx, dy);
 
             e->dragStartX = wx;
             e->dragStartY = wy;
@@ -55,28 +57,28 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         else if (e->activeTool == Engine::TOOL_ROTATE) {
             float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
 
-            Point2D c = e->selectedShape->centroid();
-            e->selectedShape->rotate(angle, c);
+            Point2D c = e->selectedCentroid();
+            for (int idx : e->selectedShapes)
+                e->shapes[idx].rotate(angle, c);
 
-            e->dragAngle += angle * 180.0f / 3.14159265f;
+            e->dragAngle += angle * 180.0f / PI;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
             if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
         }
         else if (e->activeTool == Engine::TOOL_ROTATE_ORIGIN) {
             float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
 
-            // Member 2 test/demo:
-            // Rotate selected shape around global origin point (0,0).
-            Transformations::rotateShapeAroundOrigin(e->selectedShape->vertices, angle);
+            for (int idx : e->selectedShapes)
+                Transformations::rotateShapeAroundOrigin(e->shapes[idx].vertices, angle);
 
-            e->dragAngle += angle * 180.0f / 3.14159265f;
+            e->dragAngle += angle * 180.0f / PI;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
             if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
         }
         else if (e->activeTool == Engine::TOOL_SCALE) {
             float s = 1.0f + static_cast<float>(xpos - e->lastMouseX) * 0.01f;
 
-            Point2D c = e->selectedShape->centroid();
+            Point2D c = e->selectedCentroid();
 
             Matrix3x3 t1 = Transformations::getTranslationMatrix(-c.x, -c.y);
             Matrix3x3 sc = Transformations::getScalingMatrix(s, s);
@@ -84,9 +86,9 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
 
             Matrix3x3 comp = t2 * sc * t1;
 
-            for (auto& pt : e->selectedShape->vertices) {
-                pt = comp * pt;
-            }
+            for (int idx : e->selectedShapes)
+                for (auto& pt : e->shapes[idx].vertices)
+                    pt = comp * pt;
 
             e->dragScaleFactor *= s;
         }
@@ -128,6 +130,23 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
     float wx, wy;
     e->renderer.screenToWorld(xpos, ypos, wx, wy);
 
+    auto snapToExisting = [&](float& sx, float& sy) {
+        if (e->snapToGridEnabled) {
+            sx = std::round(wx / 10.0f) * 10.0f;
+            sy = std::round(wy / 10.0f) * 10.0f;
+        } else {
+            sx = wx; sy = wy;
+        }
+        float bestDistSq = 25.0f; // threshold = 5 world units
+        for (auto& shape : e->shapes) {
+            for (auto& v : shape.vertices) {
+                float dx = v.x - sx, dy = v.y - sy;
+                float d = dx * dx + dy * dy;
+                if (d < bestDistSq) { bestDistSq = d; sx = v.x; sy = v.y; }
+            }
+        }
+    };
+
     if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
         e->isPanning = (action == GLFW_PRESS);
         return;
@@ -157,12 +176,12 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 e->isSelecting = true;
                 e->selBoxX1 = e->selBoxX2 = wx;
                 e->selBoxY1 = e->selBoxY2 = wy;
-                e->selectedShape = nullptr;
+                e->clearSelection();
                 Point2D pt(wx, wy, 1.0f);
 
-                for (auto& s : e->shapes) {
-                    if (s.contains(pt)) {
-                        e->selectedShape = &s;
+                for (int i = (int)e->shapes.size() - 1; i >= 0; i--) {
+                    if (e->shapes[i].contains(pt)) {
+                        e->selectSingle(i);
                         break;
                     }
                 }
@@ -170,17 +189,15 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 if (e->isSelecting) {
                     float dx = e->selBoxX2 - e->selBoxX1;
                     float dy = e->selBoxY2 - e->selBoxY1;
+                    float minX = std::min(e->selBoxX1, e->selBoxX2);
+                    float maxX = std::max(e->selBoxX1, e->selBoxX2);
+                    float minY = std::min(e->selBoxY1, e->selBoxY2);
+                    float maxY = std::max(e->selBoxY1, e->selBoxY2);
                     if (fabs(dx) > 1.0f || fabs(dy) > 1.0f) {
-                        float minX = std::min(e->selBoxX1, e->selBoxX2);
-                        float maxX = std::max(e->selBoxX1, e->selBoxX2);
-                        float minY = std::min(e->selBoxY1, e->selBoxY2);
-                        float maxY = std::max(e->selBoxY1, e->selBoxY2);
-                        e->selectedShape = nullptr;
-                        for (auto& s : e->shapes) {
-                            Point2D c = s.centroid();
+                        for (int i = (int)e->shapes.size() - 1; i >= 0; i--) {
+                            Point2D c = e->shapes[i].centroid();
                             if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-                                e->selectedShape = &s;
-                                break;
+                                e->addToSelection(i);
                             }
                         }
                     }
@@ -191,11 +208,9 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
 
         case Engine::TOOL_DRAW_POLYGON:
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-                float sx = wx, sy = wy;
-                if (e->snapToGridEnabled) {
-                    sx = std::round(wx / 10.0f) * 10.0f;
-                    sy = std::round(wy / 10.0f) * 10.0f;
-                }
+                if ((int)e->currentShape.size() >= e->maxPolygonVerts) return;
+                float sx, sy;
+                snapToExisting(sx, sy);
                 e->currentShape.push_back(Point2D(sx, sy, 1.0f));
                 e->isDrawing = true;
             }
@@ -221,11 +236,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
 
         case Engine::TOOL_DRAW_LINE:
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-                float sx = wx, sy = wy;
-                if (e->snapToGridEnabled) {
-                    sx = std::round(wx / 10.0f) * 10.0f;
-                    sy = std::round(wy / 10.0f) * 10.0f;
-                }
+                float sx, sy;
+                snapToExisting(sx, sy);
                 e->currentShape.push_back(Point2D(sx, sy, 1.0f));
                 e->isDrawing = true;
             }
@@ -244,11 +256,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->isDrawing = true;
                 e->currentShape.clear();
-                float sx = wx, sy = wy;
-                if (e->snapToGridEnabled) {
-                    sx = std::round(wx / 10.0f) * 10.0f;
-                    sy = std::round(wy / 10.0f) * 10.0f;
-                }
+                float sx, sy;
+                snapToExisting(sx, sy);
                 e->currentShape.push_back(Point2D(sx, sy, 1.0f));
             }
             else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
@@ -263,7 +272,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 Point2D pt(wx, wy, 1.0f);
                 bool hit = false;
 
-                for (auto& s : e->shapes) {
+                for (int i = (int)e->shapes.size() - 1; i >= 0; i--) {
+                    auto& s = e->shapes[i];
                     if (s.contains(pt)) {
                         s.fill[0] = e->fillColor[0];
                         s.fill[1] = e->fillColor[1];
@@ -312,16 +322,15 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->pushUndo();
                 Point2D pt(wx, wy, 1.0f);
-                e->selectedShape = nullptr;
+                int hitIdx = -1;
 
-                for (auto& s : e->shapes) {
-                    if (s.contains(pt)) {
-                        e->selectedShape = &s;
-                        break;
-                    }
+                for (int i = (int)e->shapes.size() - 1; i >= 0; i--) {
+                    if (e->shapes[i].contains(pt)) { hitIdx = i; break; }
                 }
 
-                if (e->selectedShape) {
+                if (hitIdx >= 0) {
+                    if (!e->isSelected(hitIdx))
+                        e->selectSingle(hitIdx);
                     e->isDragging = true;
                     e->dragStartX = wx;
                     e->dragStartY = wy;
@@ -331,6 +340,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                         e->activeTool == Engine::TOOL_ROTATE_ORIGIN) {
                         e->dragAngle = 0.0f;
                     }
+                } else {
+                    e->clearSelection();
                 }
             }
             else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
@@ -343,11 +354,8 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 e->pushUndo();
                 std::vector<Point2D> verts;
                 float s = e->shapeSize;
-                float px = wx, py = wy;
-                if (e->snapToGridEnabled) {
-                    px = std::round(wx / 10.0f) * 10.0f;
-                    py = std::round(wy / 10.0f) * 10.0f;
-                }
+                float px, py;
+                snapToExisting(px, py);
 
                 switch (e->activeShapeType) {
                     case Engine::SHAPE_RECTANGLE:
@@ -437,6 +445,8 @@ void InputHandler::keyCallback(GLFWwindow* window, int key, int scancode, int ac
             return;
         }
         if (key == GLFW_KEY_O && (mods & GLFW_MOD_CONTROL)) { e->openWithDialog(); return; }
+        if (key == GLFW_KEY_C && (mods & GLFW_MOD_CONTROL)) { e->copySelected(); return; }
+        if (key == GLFW_KEY_V && (mods & GLFW_MOD_CONTROL)) { e->pasteClipboard(); return; }
 
         if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) {
             if (e->isDrawing && e->activeTool == Engine::TOOL_DRAW_LINE) {
@@ -517,18 +527,15 @@ void InputHandler::keyCallback(GLFWwindow* window, int key, int scancode, int ac
             return;
         }
 
-        // Delete selected shape
+        // Delete selected shape(s)
         if (key == GLFW_KEY_DELETE || key == GLFW_KEY_BACKSPACE) {
-            if (e->selectedShape) {
+            if (!e->selectedShapes.empty()) {
                 e->pushUndo();
-                for (auto it = e->shapes.begin(); it != e->shapes.end(); ++it) {
-                    if (&*it == e->selectedShape) {
-                        e->shapes.erase(it);
-                        break;
-                    }
-                }
-
-                e->selectedShape = nullptr;
+                std::vector<int> sorted = e->selectedShapes;
+                std::sort(sorted.begin(), sorted.end());
+                for (int i = (int)sorted.size() - 1; i >= 0; i--)
+                    e->shapes.erase(e->shapes.begin() + sorted[i]);
+                e->clearSelection();
             }
 
             return;

@@ -36,7 +36,7 @@ new features and infrastructure are divided equally on top.
 - `segSegIntersect(a, b, c, d, out)` — segment intersection test
 - `distSq(a, b)` — squared distance
 - `normAngle(a)` — normalize angle to [0, 2π)
-- `findEnclosedRegion(out, click, shapeVertices, shapeClosed)` — face detection from intersecting segments
+- `findEnclosedRegion(out, click, shapeVertices, shapeClosed)` — face detection from intersecting segments (multi-directional ray: tries right/up/left/down)
 
 ### Polygon Clipping (Clipping.cpp)
 - `clipAgainstEdge(poly, out, box, edge)` — single-edge Sutherland–Hodgman helper
@@ -65,6 +65,12 @@ new features and infrastructure are divided equally on top.
 - `Shape::rotate(angleRadians, pivot)` — delegates to `Transformations::rotateShapeAroundPivot`
 - `Shape::mirror(horizontal, vertical)` — delegates to `Transformations::mirrorShape`
 
+### Z-Order & Clipboard (Engine.cpp)
+- `Engine::bringToFront()` — move all selected shapes to top of draw order, preserve internal order
+- `Engine::sendToBack()` — move all selected shapes to bottom of draw order, preserve internal order
+- `Engine::copySelected()` — snapshot all selected shapes into clipboard
+- `Engine::pasteClipboard()` — insert all clipboard shapes at +10 offset each, select all pasted
+
 ---
 
 ## Member 3 — Engine Input, Camera Controls & Hit-Testing
@@ -91,6 +97,13 @@ new features and infrastructure are divided equally on top.
 ### Hit-Testing (Clipping.cpp)
 - `Clipping::isPointInPolygon(point, polygon)` — even-odd ray casting
 
+### Drawing Enhancements (InputHandler.cpp)
+- Vertex snapping: `snapToExisting` lambda (grid snap + nearest existing vertex within 5 units)
+- Vertex cap: enforce `maxPolygonVerts` (100) in polygon drawing
+- `Esc` key: cancel active drawing
+- `Ctrl+C` / `Ctrl+V`: copy/paste shortcut handling
+- Selection helpers: `isSelected`, `selectSingle`, `addToSelection`, `clearSelection`, `firstSelected`
+
 ### Entry Point (main.cpp)
 - `main()` — engine instantiation, initialization, coordinate setup, run loop
 
@@ -114,7 +127,7 @@ new features and infrastructure are divided equally on top.
 - `Engine::update(deltaTime)` — per-frame placeholder
 
 ### Undo/Redo (Engine.cpp)
-- `Engine::pushUndo()` — snapshot shapes to undo stack, clear redo stack
+- `Engine::pushUndo()` — snapshot shapes to undo stack, clear redo stack (truncates oldest entry when depth > 100)
 - `Engine::undo()` — restore previous shape state
 - `Engine::redo()` — restore next shape state
 
@@ -123,16 +136,18 @@ new features and infrastructure are divided equally on top.
 - `Engine::loadShapes(filename)` — read `.cad` text format
 - `Engine::saveWithDialog()` — native Windows Save As dialog, stores path in `currentFilePath`
 - `Engine::openWithDialog()` — native Windows Open dialog, stores path in `currentFilePath`
+- `Engine::exportSVG(filename)` — write shapes as SVG vector file
+- `Engine::exportWithDialog()` — native Windows Save As dialog for `.svg`
 
 ### Rendering (Renderer.cpp)
 - `Renderer::Renderer(engine)` — constructor
 - `Renderer::render()` — full frame: viewport offset for sidebar, clear, projection, grid, shape loop (clip + fill + stroke + selection highlight + in-progress preview + selection box)
 - `Renderer::drawGrid()` — 10-unit grid lines
-- `Renderer::scanLineFill(polygon)` — scan-line polygon fill
+- `Renderer::floodFill(polygon)` — stencil-buffer flood fill
 
 ### State Declarations (Engine.h)
-- All private member fields (shapes, selectedShape, tools, colors, drag state, undo/redo stacks, selection box, snap flag, `panelWidth`, `currentFilePath[260]`)
-- Public API declarations (includes `saveWithDialog`, `openWithDialog`)
+- All private member fields (shapes, selectedShapes, tools, colors, drag state, undo/redo stacks, selection box, snap flag, `panelWidth`, `currentFilePath[260]`)
+- Public API declarations (includes `isSelected`, `clearSelection`, `selectSingle`, `addToSelection`, `selectedCentroid`, `firstSelected`, `saveWithDialog`, `openWithDialog`)
 - Tool and ShapeType enums
 
 ---
@@ -145,8 +160,6 @@ new features and infrastructure are divided equally on top.
 **Category:** Line clipping algorithms, viewport coordinate mapping, user interface
 
 ### Line Clipping (Clipping.cpp)
-- `Clipping::computeRegionCode(x, y, box)` — 4-bit outcodes for Cohen-Sutherland
-- `Clipping::cohenSutherlandClipLine(p1, p2, box)` — region-code line clipping
 - `Clipping::liangBarskyClipLine(p1, p2, box)` — parametric line clipping
 
 ### Coordinate Mapping (Renderer.cpp)
@@ -157,10 +170,10 @@ new features and infrastructure are divided equally on top.
 - `UIBuilder::buildUI()` — complete UI layout:
 
   **Menu bar:**
-  - File menu: Save (Ctrl+S, opens native dialog, auto-saves to last path after first time), Open (Ctrl+O, native dialog), Clear All, Exit
+  - File menu: Save (Ctrl+S, opens native dialog, auto-saves to last path after first time), Open (Ctrl+O, native dialog), Export SVG, Clear All, Exit
   - Edit menu: Undo (Ctrl+Z), Redo (Ctrl+Y)
   - View menu: Grid toggle, Snap to Grid toggle, Reset Zoom
-  - Help menu: shortcut reference text, tool usage descriptions
+  - Help menu: updated shortcut reference + tool descriptions + feature list
 
   **Tool panel (left sidebar):**
   - Draw section: Select, Polygon, Line, Pen buttons (active highlighting)
@@ -168,7 +181,7 @@ new features and infrastructure are divided equally on top.
   - Transform section: Move, Rotate, Rotate Origin, Scale buttons (disabled when no selection)
   - Shapes section: shape type combo (Rectangle/Circle/Triangle/Pentagon/Hexagon/Star), Size slider, Place button
   - Colors section: Fill and Stroke color editors (edits selected shape or defaults)
-  - Selection section: vertex count, Mirror H, Mirror V, Delete button
+  - Selection section: multi-select count, Bring to Front, Send to Back, Mirror H, Mirror V, Delete button (all apply to all selected shapes)
 
   **Status bar (bottom):**
-  - Current tool label, cursor world coordinates, shape count, drag info (scale factor during Scale, angle during Rotate)
+  - Current tool label, cursor world coordinates, shape count, zoom percentage indicator, drag readout overlay (scale factor during Scale, angle during Rotate)

@@ -11,8 +11,8 @@ public:
     explicit Renderer(Engine& engine);
 
     void render();
-    void drawGrid();
-    void scanLineFill(const std::vector<Point2D>& polygon);
+    void drawGrid(float effLeft, float effRight);
+    void floodFill(const std::vector<Point2D>& polygon);
     void screenToWorld(double screenX, double screenY, float& worldX, float& worldY);
 
 private:

@@ -16,11 +16,6 @@ struct BoundingBox {
 
 class Clipping {
 public:
-    // Clips a line segment defined by p1 and p2 using Cohen-Sutherland algorithm.
-    // Modifies p1 and p2 directly if clipped.
-    // Returns true if any part of the line is visible, false if fully rejected.
-    static bool cohenSutherlandClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box);
-
     // Clips a line segment defined by p1 and p2 using Liang-Barsky algorithm.
     // Modifies p1 and p2 directly if clipped.
     // Returns true if any part of the line is visible, false if fully rejected.
@@ -41,9 +36,6 @@ public:
         const std::vector<std::vector<Point2D>>& shapeVertices,
         const std::vector<bool>& shapeClosed);
 
-private:
-    // Helper function for region code calculation
-    static int computeRegionCode(float x, float y, const BoundingBox& box);
 };
 
 #endif // CLIPPING_H
