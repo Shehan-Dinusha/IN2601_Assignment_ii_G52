@@ -145,8 +145,6 @@ new features and infrastructure are divided equally on top.
 **Category:** Line clipping algorithms, viewport coordinate mapping, user interface
 
 ### Line Clipping (Clipping.cpp)
-- `Clipping::computeRegionCode(x, y, box)` — 4-bit outcodes for Cohen-Sutherland
-- `Clipping::cohenSutherlandClipLine(p1, p2, box)` — region-code line clipping
 - `Clipping::liangBarskyClipLine(p1, p2, box)` — parametric line clipping
 
 ### Coordinate Mapping (Renderer.cpp)

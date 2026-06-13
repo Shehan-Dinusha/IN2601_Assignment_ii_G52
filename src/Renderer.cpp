@@ -40,21 +40,36 @@ void Renderer::render() {
 
     for (int idx = 0; idx < (int)engine.shapes.size(); idx++) {
         auto& shape = engine.shapes[idx];
-        std::vector<Point2D> clipped = shape.vertices;
-        Clipping::sutherlandHodgmanClipPolygon(clipped, clipBox);
 
-        if (shape.closed && clipped.size() >= 3) {
-            glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
-            scanLineFill(clipped);
-        }
+        if (shape.closed) {
+            std::vector<Point2D> clipped = shape.vertices;
+            Clipping::sutherlandHodgmanClipPolygon(clipped, clipBox);
 
-        glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-        if (idx == engine.selectedShapeIndex) {
-            glColor3f(1.0f, 0.8f, 0.2f);
+            if (clipped.size() >= 3) {
+                glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
+                scanLineFill(clipped);
+            }
+
+            glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
+            if (idx == engine.selectedShapeIndex) glColor3f(1.0f, 0.8f, 0.2f);
+            glBegin(GL_LINE_LOOP);
+            for (auto& pt : clipped) glVertex2f(pt.x, pt.y);
+            glEnd();
+        } else {
+            glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
+            if (idx == engine.selectedShapeIndex) glColor3f(1.0f, 0.8f, 0.2f);
+            glBegin(GL_LINES);
+            for (size_t si = 0; si + 1 < shape.vertices.size(); si++) {
+                Point2D p1 = shape.vertices[si];
+                Point2D p2 = shape.vertices[si + 1];
+                if (Clipping::liangBarskyClipLine(p1, p2, clipBox))
+                {
+                    glVertex2f(p1.x, p1.y);
+                    glVertex2f(p2.x, p2.y);
+                }
+            }
+            glEnd();
         }
-        glBegin(shape.closed ? GL_LINE_LOOP : GL_LINE_STRIP);
-        for (auto& pt : clipped) glVertex2f(pt.x, pt.y);
-        glEnd();
     }
 
     if (engine.isDrawing && !engine.currentShape.empty()) {

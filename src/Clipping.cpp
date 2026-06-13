@@ -3,13 +3,6 @@
 #include <algorithm>
 #include <limits>
 
-// Define region codes for Cohen-Sutherland
-const int INSIDE = 0; // 0000
-const int LEFT   = 1; // 0001
-const int RIGHT  = 2; // 0010
-const int BOTTOM = 4; // 0100
-const int TOP    = 8; // 1000
-
 static float cross2D(const Point2D& a, const Point2D& b) {
     return a.x * b.y - a.y * b.x;
 }
@@ -206,57 +199,6 @@ bool Clipping::findEnclosedRegion(std::vector<Point2D>& out, const Point2D& clic
 
     out = std::move(poly);
     return true;
-}
-
-int Clipping::computeRegionCode(float x, float y, const BoundingBox& box) {
-    int code = INSIDE;
-    if (x < box.xMin) code |= LEFT;
-    if (x > box.xMax) code |= RIGHT;
-    if (y < box.yMin) code |= BOTTOM;
-    if (y > box.yMax) code |= TOP;
-    return code;
-}
-
-bool Clipping::cohenSutherlandClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
-    int code1 = computeRegionCode(p1.x, p1.y, box);
-    int code2 = computeRegionCode(p2.x, p2.y, box);
-    bool accept = false;
-
-    while (true) {
-        if (code1 == 0 && code2 == 0) {
-            accept = true;
-            break;
-        } else if (code1 & code2) {
-            break;
-        } else {
-            int codeOut = (code1 != 0) ? code1 : code2;
-            float x, y;
-
-            if (codeOut & TOP) {
-                x = p1.x + (p2.x - p1.x) * (box.yMax - p1.y) / (p2.y - p1.y);
-                y = box.yMax;
-            } else if (codeOut & BOTTOM) {
-                x = p1.x + (p2.x - p1.x) * (box.yMin - p1.y) / (p2.y - p1.y);
-                y = box.yMin;
-            } else if (codeOut & RIGHT) {
-                y = p1.y + (p2.y - p1.y) * (box.xMax - p1.x) / (p2.x - p1.x);
-                x = box.xMax;
-            } else { // LEFT
-                y = p1.y + (p2.y - p1.y) * (box.xMin - p1.x) / (p2.x - p1.x);
-                x = box.xMin;
-            }
-
-            if (codeOut == code1) {
-                p1.x = x; p1.y = y;
-                code1 = computeRegionCode(p1.x, p1.y, box);
-            } else {
-                p2.x = x; p2.y = y;
-                code2 = computeRegionCode(p2.x, p2.y, box);
-            }
-        }
-    }
-
-    return accept;
 }
 
 bool Clipping::liangBarskyClipLine(Point2D& p1, Point2D& p2, const BoundingBox& box) {
