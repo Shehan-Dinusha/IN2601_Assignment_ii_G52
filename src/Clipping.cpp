@@ -131,25 +131,48 @@ bool Clipping::findEnclosedRegion(std::vector<Point2D>& out, const Point2D& clic
         });
     }
 
-    // ---- Step 4: Cast ray rightward from click, find nearest hit ----
+    // ---- Step 4: Cast rays in 4 directions, pick nearest hit ----
     struct Hit { int vi; int ni; };
     Hit bestHit = {-1, -1};
     float bestDist = std::numeric_limits<float>::max();
 
-    for (int ei = 0; ei < (int)edges.size(); ++ei) {
-        int ai = edges[ei].first, bi = edges[ei].second;
-        float y1 = vtx[ai].y, y2 = vtx[bi].y;
-        float ymin = std::min(y1, y2), ymax = std::max(y1, y2);
-        if (ymin >= click.y || ymax <= click.y) continue;
-        if (fabs(y2 - y1) < EPS) continue;
-        float x_at_y = vtx[ai].x + (click.y - vtx[ai].y) * (vtx[bi].x - vtx[ai].x) / (vtx[bi].y - vtx[ai].y);
-        if (x_at_y <= click.x + EPS) continue;
-        float dist = x_at_y - click.x;
-        if (dist < bestDist) {
-            bestDist = dist;
-            float d1 = distSq(vtx[ai], Point2D(x_at_y, click.y));
-            float d2 = distSq(vtx[bi], Point2D(x_at_y, click.y));
-            bestHit = (d1 <= d2) ? Hit{ai, bi} : Hit{bi, ai};
+    // Try right, up, left, down
+    float dirs[4][2] = {{1,0},{0,1},{-1,0},{0,-1}};
+    for (int d = 0; d < 4; d++) {
+        float rdx = dirs[d][0], rdy = dirs[d][1];
+        for (int ei = 0; ei < (int)edges.size(); ++ei) {
+            int ai = edges[ei].first, bi = edges[ei].second;
+            float ex1 = vtx[ai].x, ey1 = vtx[ai].y;
+            float ex2 = vtx[bi].x, ey2 = vtx[bi].y;
+            float edx = ex2 - ex1, edy = ey2 - ey1;
+
+            if (rdy == 0.0f) { // horizontal ray
+                if (fabs(edy) < EPS) continue;
+                float ymin = std::min(ey1, ey2), ymax = std::max(ey1, ey2);
+                if (ymin >= click.y || ymax <= click.y) continue;
+                float x_at_y = ex1 + (click.y - ey1) * edx / edy;
+                if ((rdx > 0 && x_at_y <= click.x + EPS) || (rdx < 0 && x_at_y >= click.x - EPS)) continue;
+                float t = fabs(x_at_y - click.x);
+                if (t < bestDist) {
+                    bestDist = t;
+                    float d1 = distSq(vtx[ai], Point2D(x_at_y, click.y));
+                    float d2 = distSq(vtx[bi], Point2D(x_at_y, click.y));
+                    bestHit = (d1 <= d2) ? Hit{ai, bi} : Hit{bi, ai};
+                }
+            } else { // vertical ray
+                if (fabs(edx) < EPS) continue;
+                float xmin = std::min(ex1, ex2), xmax = std::max(ex1, ex2);
+                if (xmin >= click.x || xmax <= click.x) continue;
+                float y_at_x = ey1 + (click.x - ex1) * edy / edx;
+                if ((rdy > 0 && y_at_x <= click.y + EPS) || (rdy < 0 && y_at_x >= click.y - EPS)) continue;
+                float t = fabs(y_at_x - click.y);
+                if (t < bestDist) {
+                    bestDist = t;
+                    float d1 = distSq(vtx[ai], Point2D(click.x, y_at_x));
+                    float d2 = distSq(vtx[bi], Point2D(click.x, y_at_x));
+                    bestHit = (d1 <= d2) ? Hit{ai, bi} : Hit{bi, ai};
+                }
+            }
         }
     }
     if (bestHit.vi < 0) return false;

@@ -15,12 +15,11 @@
 Engine::Engine(int width, int height, const std::string& title)
     : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title),
       worldMinX(-100.0f), worldMaxX(100.0f), worldMinY(-100.0f), worldMaxY(100.0f),
-      selectedShapeIndex(-1),
       activeTool(TOOL_SELECT), activeShapeType(SHAPE_RECTANGLE), shapeSize(30.0f),
       showGrid(true), isDrawing(false), isPanning(false), isDragging(false),
       lastMouseX(0.0), lastMouseY(0.0), dragStartX(0.0f), dragStartY(0.0f), dragScaleFactor(1.0f), dragAngle(0.0f),
       isSelecting(false), selBoxX1(0.0f), selBoxY1(0.0f), selBoxX2(0.0f), selBoxY2(0.0f), snapToGridEnabled(true),
-      panelWidth(195.0f), currentFilePath{0},
+      panelWidth(195.0f), currentFilePath{0}, maxPolygonVerts(100),
       renderer(*this), uiBuilder(*this) {
     fillColor[0] = 0.6f; fillColor[1] = 0.6f; fillColor[2] = 1.0f;
     strokeColor[0] = 1.0f; strokeColor[1] = 1.0f; strokeColor[2] = 1.0f;
@@ -106,9 +105,91 @@ void Engine::update(float deltaTime) {
     (void)deltaTime;
 }
 
+bool Engine::isSelected(int idx) const {
+    for (int s : selectedShapes) if (s == idx) return true;
+    return false;
+}
+
+void Engine::clearSelection() { selectedShapes.clear(); }
+
+void Engine::selectSingle(int idx) {
+    clearSelection();
+    if (idx >= 0 && idx < (int)shapes.size())
+        selectedShapes.push_back(idx);
+}
+
+void Engine::addToSelection(int idx) {
+    if (idx >= 0 && idx < (int)shapes.size() && !isSelected(idx))
+        selectedShapes.push_back(idx);
+}
+
+int Engine::firstSelected() const {
+    return selectedShapes.empty() ? -1 : selectedShapes[0];
+}
+
+Point2D Engine::selectedCentroid() const {
+    Point2D sum(0, 0, 0);
+    for (int idx : selectedShapes) {
+        Point2D c = shapes[idx].centroid();
+        sum.x += c.x; sum.y += c.y;
+    }
+    if (!selectedShapes.empty()) {
+        sum.x /= (float)selectedShapes.size();
+        sum.y /= (float)selectedShapes.size();
+    }
+    return sum;
+}
+
 void Engine::pushUndo() {
     undoStack.push_back(shapes);
+    if (undoStack.size() > 100) undoStack.erase(undoStack.begin());
     redoStack.clear();
+}
+
+void Engine::bringToFront() {
+    if (selectedShapes.empty()) return;
+    pushUndo();
+    std::vector<Shape> saved;
+    for (int idx : selectedShapes) saved.push_back(shapes[idx]);
+    for (int i = (int)selectedShapes.size() - 1; i >= 0; i--)
+        shapes.erase(shapes.begin() + selectedShapes[i]);
+    selectedShapes.clear();
+    for (auto& s : saved) {
+        shapes.push_back(s);
+        selectedShapes.push_back((int)shapes.size() - 1);
+    }
+}
+
+void Engine::sendToBack() {
+    if (selectedShapes.empty()) return;
+    pushUndo();
+    std::vector<Shape> saved;
+    for (int idx : selectedShapes) saved.push_back(shapes[idx]);
+    for (int i = (int)selectedShapes.size() - 1; i >= 0; i--)
+        shapes.erase(shapes.begin() + selectedShapes[i]);
+    selectedShapes.clear();
+    for (int i = 0; i < (int)saved.size(); i++) {
+        shapes.insert(shapes.begin() + i, saved[i]);
+        selectedShapes.push_back(i);
+    }
+}
+
+void Engine::copySelected() {
+    if (selectedShapes.empty()) return;
+    clipboard.clear();
+    for (int idx : selectedShapes) clipboard.push_back(shapes[idx]);
+}
+
+void Engine::pasteClipboard() {
+    if (clipboard.empty()) return;
+    pushUndo();
+    clearSelection();
+    for (auto& s : clipboard) {
+        Shape c = s;
+        c.translate(10.0f, 10.0f);
+        shapes.push_back(c);
+        selectedShapes.push_back((int)shapes.size() - 1);
+    }
 }
 
 void Engine::undo() {
@@ -116,7 +197,7 @@ void Engine::undo() {
     redoStack.push_back(shapes);
     shapes = undoStack.back();
     undoStack.pop_back();
-    selectedShapeIndex = -1;
+    clearSelection();
 }
 
 void Engine::redo() {
@@ -124,7 +205,7 @@ void Engine::redo() {
     undoStack.push_back(shapes);
     shapes = redoStack.back();
     redoStack.pop_back();
-    selectedShapeIndex = -1;
+    clearSelection();
 }
 
 void Engine::saveShapes(const char* filename) {
@@ -147,7 +228,7 @@ void Engine::loadShapes(const char* filename) {
     size_t count;
     if (fscanf(f, "%zu", &count) != 1) { fclose(f); return; }
     shapes.clear();
-    selectedShapeIndex = -1;
+    clearSelection();
     currentShape.clear();
     isDrawing = false;
     for (size_t i = 0; i < count; ++i) {
@@ -166,6 +247,49 @@ void Engine::loadShapes(const char* filename) {
         shapes.push_back(s);
     }
     fclose(f);
+}
+
+void Engine::exportSVG(const char* filename) {
+    FILE* f = fopen(filename, "w");
+    if (!f) return;
+
+    float minX = 0, maxX = 0, minY = 0, maxY = 0;
+    bool first = true;
+    for (auto& s : shapes) {
+        for (auto& pt : s.vertices) {
+            if (first) { minX = maxX = pt.x; minY = maxY = pt.y; first = false; }
+            else { if (pt.x < minX) minX = pt.x; if (pt.x > maxX) maxX = pt.x; if (pt.y < minY) minY = pt.y; if (pt.y > maxY) maxY = pt.y; }
+        }
+    }
+    float pad = 10.0f;
+    minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+    fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"%f %f %f %f\">\n", minX, minY, maxX - minX, maxY - minY);
+    for (auto& s : shapes) {
+        fprintf(f, "  <%s points=\"", s.closed ? "polygon" : "polyline");
+        for (size_t i = 0; i < s.vertices.size(); i++) {
+            if (i > 0) fputc(' ', f);
+            fprintf(f, "%f,%f", s.vertices[i].x, s.vertices[i].y);
+        }
+        fprintf(f, "\" fill=\"%s\" stroke=\"rgb(%d,%d,%d)\" stroke-width=\"0.5\"/>\n",
+            s.closed ? "rgb(204,204,255)" : "none",
+            (int)(s.stroke[0]*255), (int)(s.stroke[1]*255), (int)(s.stroke[2]*255));
+    }
+    fprintf(f, "</svg>\n");
+    fclose(f);
+}
+
+void Engine::exportWithDialog() {
+    OPENFILENAMEA ofn = {};
+    char path[260] = {};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = nullptr;
+    ofn.lpstrFilter = "SVG Files\0*.svg\0All Files\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+    ofn.lpstrDefExt = "svg";
+    if (GetSaveFileNameA(&ofn)) exportSVG(path);
 }
 
 void Engine::saveWithDialog() {

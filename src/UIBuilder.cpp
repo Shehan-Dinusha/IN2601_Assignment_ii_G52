@@ -6,6 +6,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <algorithm>
 
 UIBuilder::UIBuilder(Engine& eng) : engine(eng) {}
 
@@ -16,11 +17,12 @@ void UIBuilder::buildUI() {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Save", "Ctrl+S")) engine.saveWithDialog();
             if (ImGui::MenuItem("Open", "Ctrl+O")) engine.openWithDialog();
+            if (ImGui::MenuItem("Export SVG")) engine.exportWithDialog();
             ImGui::Separator();
             if (ImGui::MenuItem("Clear All")) {
                 engine.shapes.clear();
                 engine.currentShape.clear();
-                engine.selectedShapeIndex = -1;
+                engine.clearSelection();
                 engine.isDrawing = false;
             }
             ImGui::Separator();
@@ -44,18 +46,23 @@ void UIBuilder::buildUI() {
         if (ImGui::BeginMenu("Help")) {
             ImGui::Text("Shortcuts:");
             ImGui::Text("  Ctrl+Z=Undo  Ctrl+Y=Redo  Ctrl+S=Save  Ctrl+O=Open");
+            ImGui::Text("  Ctrl+C=Copy  Ctrl+V=Paste  (10px offset)");
             ImGui::Text("  1=Select  2=Polygon  3=Line  4=Pen  5=Fill");
-            ImGui::Text("  M=Move  R=Rotate  O=Rot Origin  S=Scale  Del=Delete  Enter=Finish Line");
+            ImGui::Text("  M=Move  R=Rotate  O=Rot Origin  S=Scale");
+            ImGui::Text("  Del=Delete  Enter=Finish Line  Esc=Cancel");
             ImGui::Separator();
-            ImGui::Text("Select: Click to select a shape");
-            ImGui::Text("Polygon: Left-click = vertex, Right-click = finish");
-            ImGui::Text("Line: Left-click = vertex, Right-click = undo last point, Enter = finish");
-            ImGui::Text("Pen: Click-drag to draw freehand");
-            ImGui::Text("Fill: Click an object to fill it (fill + stroke color)");
-            ImGui::Text("Move/Rotate/Scale: Select, then click-drag");
-            ImGui::Text("Rotate: Drag left/right to spin around shape center");
-            ImGui::Text("Rotate Origin: Drag left/right to rotate around canvas origin (0,0)");
-            ImGui::Text("Pan: Middle-drag  |  Zoom: Scroll");
+            ImGui::Text("Select: Click or drag box to select");
+            ImGui::Text("Polygon: Left-click = vertex (max 100), Right-click = finish");
+            ImGui::Text("Line: Left-click = vertex, Right-click = undo last, Enter = finish");
+            ImGui::Text("Pen: Click-drag freehand");
+            ImGui::Text("Fill: Click shape to recolor; click empty area = fill enclosed region");
+            ImGui::Text("Move/Rotate/Scale: Select shape, then click-drag");
+            ImGui::Text("Z-order: Bring to Front / Send to Back in Selection panel");
+            ImGui::Separator();
+            ImGui::Text("Grid: View > Show Grid  |  Snap to Grid: View > Snap to Grid");
+            ImGui::Text("Snap: Vertices auto-snap to existing geometry within 5 units");
+            ImGui::Text("Export: File > Export SVG");
+            ImGui::Text("Undo depth: 100 levels");
             ImGui::EndMenu();
         }
 
@@ -113,7 +120,7 @@ void UIBuilder::buildUI() {
     ImGui::TextUnformatted("Transform");
     ImGui::Separator();
 
-    ImGui::BeginDisabled(engine.selectedShapeIndex < 0);
+    ImGui::BeginDisabled(engine.selectedShapes.empty());
     toolBtn("Move",          Engine::TOOL_MOVE);
     toolBtn("Rotate",        Engine::TOOL_ROTATE);
     toolBtn("Rotate Origin", Engine::TOOL_ROTATE_ORIGIN);
@@ -134,31 +141,46 @@ void UIBuilder::buildUI() {
     ImGui::Separator();
     ImGui::TextUnformatted("Colors");
 
-    float* fillPtr = engine.selectedShapeIndex >= 0 ? engine.shapes[engine.selectedShapeIndex].fill : engine.fillColor;
-    float* strokePtr = engine.selectedShapeIndex >= 0 ? engine.shapes[engine.selectedShapeIndex].stroke : engine.strokeColor;
+    float* fillPtr = engine.firstSelected() >= 0 ? engine.shapes[engine.firstSelected()].fill : engine.fillColor;
+    float* strokePtr = engine.firstSelected() >= 0 ? engine.shapes[engine.firstSelected()].stroke : engine.strokeColor;
 
-    ImGui::ColorEdit3("Fill", fillPtr);
-    ImGui::ColorEdit3("Stroke", strokePtr);
+    if (ImGui::ColorEdit3("Fill", fillPtr) && engine.firstSelected() >= 0)
+        for (int idx : engine.selectedShapes)
+            for (int c = 0; c < 3; c++) engine.shapes[idx].fill[c] = fillPtr[c];
+    if (ImGui::ColorEdit3("Stroke", strokePtr) && engine.firstSelected() >= 0)
+        for (int idx : engine.selectedShapes)
+            for (int c = 0; c < 3; c++) engine.shapes[idx].stroke[c] = strokePtr[c];
 
     ImGui::Spacing();
     ImGui::Separator();
 
-    if (engine.selectedShapeIndex >= 0) {
+    if (!engine.selectedShapes.empty()) {
         ImGui::TextUnformatted("Selection");
-        ImGui::Text("Vertices: %zu", engine.shapes[engine.selectedShapeIndex].vertices.size());
+        ImGui::Text("%zu shapes selected", engine.selectedShapes.size());
 
         if (ImGui::Button("Mirror H", ImVec2(-1, 26))) {
-            engine.shapes[engine.selectedShapeIndex].mirror(true, false);
+            for (int idx : engine.selectedShapes) engine.shapes[idx].mirror(true, false);
         }
 
         if (ImGui::Button("Mirror V", ImVec2(-1, 26))) {
-            engine.shapes[engine.selectedShapeIndex].mirror(false, true);
+            for (int idx : engine.selectedShapes) engine.shapes[idx].mirror(false, true);
+        }
+
+        if (ImGui::Button("Bring to Front", ImVec2(-1, 26))) {
+            engine.bringToFront();
+        }
+
+        if (ImGui::Button("Send to Back", ImVec2(-1, 26))) {
+            engine.sendToBack();
         }
 
         if (ImGui::Button("Delete", ImVec2(-1, 26))) {
             engine.pushUndo();
-            engine.shapes.erase(engine.shapes.begin() + engine.selectedShapeIndex);
-            engine.selectedShapeIndex = -1;
+            std::vector<int> sorted = engine.selectedShapes;
+            std::sort(sorted.begin(), sorted.end());
+            for (int i = (int)sorted.size() - 1; i >= 0; i--)
+                engine.shapes.erase(engine.shapes.begin() + sorted[i]);
+            engine.clearSelection();
         }
 
     } else {
@@ -189,18 +211,37 @@ void UIBuilder::buildUI() {
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar);
 
-    if (engine.activeTool == Engine::TOOL_SCALE && engine.isDragging && engine.selectedShapeIndex >= 0) {
-        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Scale: %.2fx",
-            label, wx, wy, engine.shapes.size(), engine.dragScaleFactor);
+    float zoomPct = 200.0f / (engine.worldMaxX - engine.worldMinX) * 100.0f;
+
+    if (engine.activeTool == Engine::TOOL_SCALE && engine.isDragging && !engine.selectedShapes.empty()) {
+        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Zoom: %.0f%%  |  Scale: %.2fx",
+            label, wx, wy, engine.shapes.size(), zoomPct, engine.dragScaleFactor);
     } else if ((engine.activeTool == Engine::TOOL_ROTATE ||
                 engine.activeTool == Engine::TOOL_ROTATE_ORIGIN) &&
-                engine.isDragging && engine.selectedShapeIndex >= 0) {
-        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Angle: %.1f",
-            label, wx, wy, engine.shapes.size(), engine.dragAngle);
+                engine.isDragging && !engine.selectedShapes.empty()) {
+        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Zoom: %.0f%%  |  Angle: %.1f",
+            label, wx, wy, engine.shapes.size(), zoomPct, engine.dragAngle);
     } else {
-        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu",
-            label, wx, wy, engine.shapes.size());
+        ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Zoom: %.0f%%",
+            label, wx, wy, engine.shapes.size(), zoomPct);
     }
 
     ImGui::End();
+
+    // Overlay readout during rotate/scale drag
+    if (engine.isDragging && !engine.selectedShapes.empty()) {
+        ImGui::SetNextWindowPos(ImVec2((float)mx + 15, (float)my - 30));
+        ImGui::SetNextWindowBgAlpha(0.7f);
+        ImGui::Begin("##dragOverlay", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs);
+        if (engine.activeTool == Engine::TOOL_SCALE)
+            ImGui::Text("Scale: %.2fx", engine.dragScaleFactor);
+        else if (engine.activeTool == Engine::TOOL_ROTATE || engine.activeTool == Engine::TOOL_ROTATE_ORIGIN)
+            ImGui::Text("Angle: %.1f", engine.dragAngle);
+        else if (engine.activeTool == Engine::TOOL_MOVE)
+            ImGui::Text("Move");
+        ImGui::End();
+    }
 }

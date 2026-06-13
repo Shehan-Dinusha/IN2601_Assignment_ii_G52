@@ -12,7 +12,7 @@ public:
 
     void render();
     void drawGrid(float effLeft, float effRight);
-    void scanLineFill(const std::vector<Point2D>& polygon);
+    void floodFill(const std::vector<Point2D>& polygon);
     void screenToWorld(double screenX, double screenY, float& worldX, float& worldY);
 
 private:

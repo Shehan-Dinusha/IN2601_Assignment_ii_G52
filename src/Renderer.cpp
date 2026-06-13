@@ -14,7 +14,7 @@ void Renderer::render() {
     glViewport(canvasX, 0, canvasW, engine.windowHeight);
 
     glClearColor(0.15f, 0.18f, 0.20f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -47,17 +47,17 @@ void Renderer::render() {
 
             if (clipped.size() >= 3) {
                 glColor3f(shape.fill[0], shape.fill[1], shape.fill[2]);
-                scanLineFill(clipped);
+                floodFill(clipped);
             }
 
             glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-            if (idx == engine.selectedShapeIndex) glColor3f(1.0f, 0.8f, 0.2f);
+            if (engine.isSelected(idx)) glColor3f(1.0f, 0.8f, 0.2f);
             glBegin(GL_LINE_LOOP);
             for (auto& pt : clipped) glVertex2f(pt.x, pt.y);
             glEnd();
         } else {
             glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-            if (idx == engine.selectedShapeIndex) glColor3f(1.0f, 0.8f, 0.2f);
+            if (engine.isSelected(idx)) glColor3f(1.0f, 0.8f, 0.2f);
             glBegin(GL_LINES);
             for (size_t si = 0; si + 1 < shape.vertices.size(); si++) {
                 Point2D p1 = shape.vertices[si];
@@ -153,40 +153,37 @@ void Renderer::drawGrid(float effLeft, float effRight) {
     glEnd();
 }
 
-void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
+void Renderer::floodFill(const std::vector<Point2D>& polygon) {
     if (polygon.size() < 3) return;
 
-    float yMin = polygon[0].y, yMax = polygon[0].y;
-    for (auto& pt : polygon) {
-        if (pt.y < yMin) yMin = pt.y;
-        if (pt.y > yMax) yMax = pt.y;
-    }
+    glClear(GL_STENCIL_BUFFER_BIT);
+    glEnable(GL_STENCIL_TEST);
+    glStencilMask(1);
+    glStencilFunc(GL_ALWAYS, 0, 1);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
 
-    int iyMin = static_cast<int>(std::ceil(yMin));
-    int iyMax = static_cast<int>(std::floor(yMax));
-    size_t n = polygon.size();
-
-    glBegin(GL_LINES);
-    for (int y = iyMin; y <= iyMax; ++y) {
-        float scanY = static_cast<float>(y);
-        std::vector<float> xs;
-
-        for (size_t i = 0; i < n; ++i) {
-            float xi = polygon[i].x, yi = polygon[i].y;
-            float xj = polygon[(i + 1) % n].x, yj = polygon[(i + 1) % n].y;
-            if ((yi > scanY) != (yj > scanY)) {
-                xs.push_back(xi + (scanY - yi) * (xj - xi) / (yj - yi));
-            }
-        }
-
-        if (xs.size() < 2) continue;
-        std::sort(xs.begin(), xs.end());
-        for (size_t i = 0; i + 1 < xs.size(); i += 2) {
-            glVertex2f(xs[i], scanY);
-            glVertex2f(xs[i + 1], scanY);
-        }
-    }
+    glBegin(GL_TRIANGLE_FAN);
+    for (auto& pt : polygon) glVertex2f(pt.x, pt.y);
     glEnd();
+
+    glStencilFunc(GL_EQUAL, 1, 1);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+    float halfH = (engine.worldMaxY - engine.worldMinY) * 0.5f;
+    float cx = (engine.worldMinX + engine.worldMaxX) * 0.5f;
+    float cy = (engine.worldMinY + engine.worldMaxY) * 0.5f;
+    int canvasX = static_cast<int>(engine.panelWidth);
+    int canvasW = engine.windowWidth - canvasX;
+    float halfW = halfH * (canvasW / (float)engine.windowHeight);
+
+    glBegin(GL_QUADS);
+    glVertex2f(cx - halfW, cy - halfH);
+    glVertex2f(cx + halfW, cy - halfH);
+    glVertex2f(cx + halfW, cy + halfH);
+    glVertex2f(cx - halfW, cy + halfH);
+    glEnd();
+
+    glDisable(GL_STENCIL_TEST);
 }
 
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {

@@ -54,6 +54,20 @@ public:
     void loadShapes(const char* filename);
     void saveWithDialog();
     void openWithDialog();
+    void exportSVG(const char* filename);
+    void exportWithDialog();
+
+    bool isSelected(int idx) const;
+    void clearSelection();
+    void selectSingle(int idx);
+    void addToSelection(int idx);
+    Point2D selectedCentroid() const;
+    int firstSelected() const;
+
+    void bringToFront();
+    void sendToBack();
+    void copySelected();
+    void pasteClipboard();
 
 private:
     GLFWwindow* window;
@@ -65,7 +79,7 @@ private:
     float worldMinY, worldMaxY;
 
     std::vector<Shape> shapes;
-    int selectedShapeIndex;
+    std::vector<int> selectedShapes;
     std::vector<Point2D> currentShape;
 
     Tool activeTool;
@@ -90,6 +104,8 @@ private:
     bool snapToGridEnabled;
     float panelWidth;
     char currentFilePath[260];
+    int maxPolygonVerts;
+    std::vector<Shape> clipboard;
 
     Renderer renderer;
     UIBuilder uiBuilder;
