@@ -19,25 +19,27 @@ void Renderer::render() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    float aspect = canvasW / (float)engine.windowHeight;
+    float cx = (engine.worldMinX + engine.worldMaxX) * 0.5f;
+    float cy = (engine.worldMinY + engine.worldMaxY) * 0.5f;
+    float halfH = (engine.worldMaxY - engine.worldMinY) * 0.5f;
+    float halfW = halfH * aspect;
+    float effLeft = cx - halfW, effRight = cx + halfW;
+    float effBottom = cy - halfH, effTop = cy + halfH;
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(
-        engine.worldMinX,
-        engine.worldMaxX,
-        engine.worldMinY,
-        engine.worldMaxY,
-        -1.0,
-        1.0
-    );
+    glOrtho(effLeft, effRight, effBottom, effTop, -1.0, 1.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    drawGrid();
+    drawGrid(effLeft, effRight);
 
-    BoundingBox clipBox(engine.worldMinX, engine.worldMaxX, engine.worldMinY, engine.worldMaxY);
+    BoundingBox clipBox(effLeft, effRight, effBottom, effTop);
 
-    for (auto& shape : engine.shapes) {
+    for (int idx = 0; idx < (int)engine.shapes.size(); idx++) {
+        auto& shape = engine.shapes[idx];
         std::vector<Point2D> clipped = shape.vertices;
         Clipping::sutherlandHodgmanClipPolygon(clipped, clipBox);
 
@@ -47,7 +49,7 @@ void Renderer::render() {
         }
 
         glColor3f(shape.stroke[0], shape.stroke[1], shape.stroke[2]);
-        if (&shape == engine.selectedShape) {
+        if (idx == engine.selectedShapeIndex) {
             glColor3f(1.0f, 0.8f, 0.2f);
         }
         glBegin(shape.closed ? GL_LINE_LOOP : GL_LINE_STRIP);
@@ -112,25 +114,25 @@ void Renderer::render() {
     }
 }
 
-void Renderer::drawGrid() {
+void Renderer::drawGrid(float effLeft, float effRight) {
     if (!engine.showGrid) return;
 
     glColor3f(0.22f, 0.26f, 0.29f);
     float step = 10.0f;
 
-    float x0 = std::floor(engine.worldMinX / step) * step;
+    float x0 = std::floor(effLeft / step) * step;
     float y0 = std::floor(engine.worldMinY / step) * step;
 
     glBegin(GL_LINES);
 
-    for (float x = x0; x <= engine.worldMaxX; x += step) {
+    for (float x = x0; x <= effRight; x += step) {
         glVertex2f(x, engine.worldMinY);
         glVertex2f(x, engine.worldMaxY);
     }
 
     for (float y = y0; y <= engine.worldMaxY; y += step) {
-        glVertex2f(engine.worldMinX, y);
-        glVertex2f(engine.worldMaxX, y);
+        glVertex2f(effLeft, y);
+        glVertex2f(effRight, y);
     }
 
     glEnd();
@@ -175,6 +177,13 @@ void Renderer::scanLineFill(const std::vector<Point2D>& polygon) {
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {
     float canvasX = static_cast<float>(screenX) - engine.panelWidth;
     float canvasW = engine.windowWidth - engine.panelWidth;
-    worldX = engine.worldMinX + (canvasX / canvasW) * (engine.worldMaxX - engine.worldMinX);
-    worldY = engine.worldMaxY - (static_cast<float>(screenY) / engine.windowHeight) * (engine.worldMaxY - engine.worldMinY);
+    float aspect = canvasW / (float)engine.windowHeight;
+    float cx = (engine.worldMinX + engine.worldMaxX) * 0.5f;
+    float cy = (engine.worldMinY + engine.worldMaxY) * 0.5f;
+    float halfH = (engine.worldMaxY - engine.worldMinY) * 0.5f;
+    float halfW = halfH * aspect;
+    float left = cx - halfW, right = cx + halfW;
+    float top = cy + halfH, bottom = cy - halfH;
+    worldX = left + (canvasX / canvasW) * (right - left);
+    worldY = top - (static_cast<float>(screenY) / engine.windowHeight) * (top - bottom);
 }

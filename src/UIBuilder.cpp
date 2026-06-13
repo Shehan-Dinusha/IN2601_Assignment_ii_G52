@@ -20,7 +20,7 @@ void UIBuilder::buildUI() {
             if (ImGui::MenuItem("Clear All")) {
                 engine.shapes.clear();
                 engine.currentShape.clear();
-                engine.selectedShape = nullptr;
+                engine.selectedShapeIndex = -1;
                 engine.isDrawing = false;
             }
             ImGui::Separator();
@@ -113,7 +113,7 @@ void UIBuilder::buildUI() {
     ImGui::TextUnformatted("Transform");
     ImGui::Separator();
 
-    ImGui::BeginDisabled(!engine.selectedShape);
+    ImGui::BeginDisabled(engine.selectedShapeIndex < 0);
     toolBtn("Move",          Engine::TOOL_MOVE);
     toolBtn("Rotate",        Engine::TOOL_ROTATE);
     toolBtn("Rotate Origin", Engine::TOOL_ROTATE_ORIGIN);
@@ -134,8 +134,8 @@ void UIBuilder::buildUI() {
     ImGui::Separator();
     ImGui::TextUnformatted("Colors");
 
-    float* fillPtr = engine.selectedShape ? engine.selectedShape->fill : engine.fillColor;
-    float* strokePtr = engine.selectedShape ? engine.selectedShape->stroke : engine.strokeColor;
+    float* fillPtr = engine.selectedShapeIndex >= 0 ? engine.shapes[engine.selectedShapeIndex].fill : engine.fillColor;
+    float* strokePtr = engine.selectedShapeIndex >= 0 ? engine.shapes[engine.selectedShapeIndex].stroke : engine.strokeColor;
 
     ImGui::ColorEdit3("Fill", fillPtr);
     ImGui::ColorEdit3("Stroke", strokePtr);
@@ -143,27 +143,22 @@ void UIBuilder::buildUI() {
     ImGui::Spacing();
     ImGui::Separator();
 
-    if (engine.selectedShape) {
+    if (engine.selectedShapeIndex >= 0) {
         ImGui::TextUnformatted("Selection");
-        ImGui::Text("Vertices: %zu", engine.selectedShape->vertices.size());
+        ImGui::Text("Vertices: %zu", engine.shapes[engine.selectedShapeIndex].vertices.size());
 
         if (ImGui::Button("Mirror H", ImVec2(-1, 26))) {
-            engine.selectedShape->mirror(true, false);
+            engine.shapes[engine.selectedShapeIndex].mirror(true, false);
         }
 
         if (ImGui::Button("Mirror V", ImVec2(-1, 26))) {
-            engine.selectedShape->mirror(false, true);
+            engine.shapes[engine.selectedShapeIndex].mirror(false, true);
         }
 
         if (ImGui::Button("Delete", ImVec2(-1, 26))) {
             engine.pushUndo();
-            for (auto it = engine.shapes.begin(); it != engine.shapes.end(); ++it) {
-                if (&*it == engine.selectedShape) {
-                    engine.shapes.erase(it);
-                    break;
-                }
-            }
-            engine.selectedShape = nullptr;
+            engine.shapes.erase(engine.shapes.begin() + engine.selectedShapeIndex);
+            engine.selectedShapeIndex = -1;
         }
 
     } else {
@@ -194,12 +189,12 @@ void UIBuilder::buildUI() {
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar);
 
-    if (engine.activeTool == Engine::TOOL_SCALE && engine.isDragging && engine.selectedShape) {
+    if (engine.activeTool == Engine::TOOL_SCALE && engine.isDragging && engine.selectedShapeIndex >= 0) {
         ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Scale: %.2fx",
             label, wx, wy, engine.shapes.size(), engine.dragScaleFactor);
     } else if ((engine.activeTool == Engine::TOOL_ROTATE ||
                 engine.activeTool == Engine::TOOL_ROTATE_ORIGIN) &&
-                engine.isDragging && engine.selectedShape) {
+                engine.isDragging && engine.selectedShapeIndex >= 0) {
         ImGui::Text("  Tool: %s  |  (%.1f, %.1f)  |  Shapes: %zu  |  Angle: %.1f",
             label, wx, wy, engine.shapes.size(), engine.dragAngle);
     } else {

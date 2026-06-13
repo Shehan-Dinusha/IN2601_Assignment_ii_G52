@@ -15,7 +15,7 @@
 Engine::Engine(int width, int height, const std::string& title)
     : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title),
       worldMinX(-100.0f), worldMaxX(100.0f), worldMinY(-100.0f), worldMaxY(100.0f),
-      selectedShape(nullptr),
+      selectedShapeIndex(-1),
       activeTool(TOOL_SELECT), activeShapeType(SHAPE_RECTANGLE), shapeSize(30.0f),
       showGrid(true), isDrawing(false), isPanning(false), isDragging(false),
       lastMouseX(0.0), lastMouseY(0.0), dragStartX(0.0f), dragStartY(0.0f), dragScaleFactor(1.0f), dragAngle(0.0f),
@@ -116,7 +116,7 @@ void Engine::undo() {
     redoStack.push_back(shapes);
     shapes = undoStack.back();
     undoStack.pop_back();
-    selectedShape = nullptr;
+    selectedShapeIndex = -1;
 }
 
 void Engine::redo() {
@@ -124,7 +124,7 @@ void Engine::redo() {
     undoStack.push_back(shapes);
     shapes = redoStack.back();
     redoStack.pop_back();
-    selectedShape = nullptr;
+    selectedShapeIndex = -1;
 }
 
 void Engine::saveShapes(const char* filename) {
@@ -147,7 +147,7 @@ void Engine::loadShapes(const char* filename) {
     size_t count;
     if (fscanf(f, "%zu", &count) != 1) { fclose(f); return; }
     shapes.clear();
-    selectedShape = nullptr;
+    selectedShapeIndex = -1;
     currentShape.clear();
     isDrawing = false;
     for (size_t i = 0; i < count; ++i) {

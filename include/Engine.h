@@ -65,7 +65,7 @@ private:
     float worldMinY, worldMaxY;
 
     std::vector<Shape> shapes;
-    Shape* selectedShape;
+    int selectedShapeIndex;
     std::vector<Point2D> currentShape;
 
     Tool activeTool;

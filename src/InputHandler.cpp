@@ -39,7 +39,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         return;
     }
 
-    if (e->isDragging && e->selectedShape) {
+    if (e->isDragging && e->selectedShapeIndex >= 0) {
         float wx, wy;
         e->renderer.screenToWorld(xpos, ypos, wx, wy);
 
@@ -47,7 +47,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
             float dx = wx - e->dragStartX;
             float dy = wy - e->dragStartY;
 
-            e->selectedShape->translate(dx, dy);
+            e->shapes[e->selectedShapeIndex].translate(dx, dy);
 
             e->dragStartX = wx;
             e->dragStartY = wy;
@@ -55,8 +55,8 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         else if (e->activeTool == Engine::TOOL_ROTATE) {
             float angle = static_cast<float>(xpos - e->lastMouseX) * 0.02f;
 
-            Point2D c = e->selectedShape->centroid();
-            e->selectedShape->rotate(angle, c);
+            Point2D c = e->shapes[e->selectedShapeIndex].centroid();
+            e->shapes[e->selectedShapeIndex].rotate(angle, c);
 
             e->dragAngle += angle * 180.0f / 3.14159265f;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
@@ -67,7 +67,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
 
             // Member 2 test/demo:
             // Rotate selected shape around global origin point (0,0).
-            Transformations::rotateShapeAroundOrigin(e->selectedShape->vertices, angle);
+            Transformations::rotateShapeAroundOrigin(e->shapes[e->selectedShapeIndex].vertices, angle);
 
             e->dragAngle += angle * 180.0f / 3.14159265f;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
@@ -76,7 +76,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
         else if (e->activeTool == Engine::TOOL_SCALE) {
             float s = 1.0f + static_cast<float>(xpos - e->lastMouseX) * 0.01f;
 
-            Point2D c = e->selectedShape->centroid();
+            Point2D c = e->shapes[e->selectedShapeIndex].centroid();
 
             Matrix3x3 t1 = Transformations::getTranslationMatrix(-c.x, -c.y);
             Matrix3x3 sc = Transformations::getScalingMatrix(s, s);
@@ -84,7 +84,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
 
             Matrix3x3 comp = t2 * sc * t1;
 
-            for (auto& pt : e->selectedShape->vertices) {
+            for (auto& pt : e->shapes[e->selectedShapeIndex].vertices) {
                 pt = comp * pt;
             }
 
@@ -157,12 +157,12 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                 e->isSelecting = true;
                 e->selBoxX1 = e->selBoxX2 = wx;
                 e->selBoxY1 = e->selBoxY2 = wy;
-                e->selectedShape = nullptr;
+                e->selectedShapeIndex = -1;
                 Point2D pt(wx, wy, 1.0f);
 
-                for (auto& s : e->shapes) {
-                    if (s.contains(pt)) {
-                        e->selectedShape = &s;
+                for (int i = 0; i < (int)e->shapes.size(); i++) {
+                    if (e->shapes[i].contains(pt)) {
+                        e->selectedShapeIndex = i;
                         break;
                     }
                 }
@@ -175,11 +175,11 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
                         float maxX = std::max(e->selBoxX1, e->selBoxX2);
                         float minY = std::min(e->selBoxY1, e->selBoxY2);
                         float maxY = std::max(e->selBoxY1, e->selBoxY2);
-                        e->selectedShape = nullptr;
-                        for (auto& s : e->shapes) {
-                            Point2D c = s.centroid();
+                        e->selectedShapeIndex = -1;
+                        for (int i = 0; i < (int)e->shapes.size(); i++) {
+                            Point2D c = e->shapes[i].centroid();
                             if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) {
-                                e->selectedShape = &s;
+                                e->selectedShapeIndex = i;
                                 break;
                             }
                         }
@@ -312,16 +312,16 @@ void InputHandler::mouseButtonCallback(GLFWwindow* window, int button, int actio
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 e->pushUndo();
                 Point2D pt(wx, wy, 1.0f);
-                e->selectedShape = nullptr;
+                e->selectedShapeIndex = -1;
 
-                for (auto& s : e->shapes) {
-                    if (s.contains(pt)) {
-                        e->selectedShape = &s;
+                for (int i = 0; i < (int)e->shapes.size(); i++) {
+                    if (e->shapes[i].contains(pt)) {
+                        e->selectedShapeIndex = i;
                         break;
                     }
                 }
 
-                if (e->selectedShape) {
+                if (e->selectedShapeIndex >= 0) {
                     e->isDragging = true;
                     e->dragStartX = wx;
                     e->dragStartY = wy;
@@ -519,16 +519,10 @@ void InputHandler::keyCallback(GLFWwindow* window, int key, int scancode, int ac
 
         // Delete selected shape
         if (key == GLFW_KEY_DELETE || key == GLFW_KEY_BACKSPACE) {
-            if (e->selectedShape) {
+            if (e->selectedShapeIndex >= 0) {
                 e->pushUndo();
-                for (auto it = e->shapes.begin(); it != e->shapes.end(); ++it) {
-                    if (&*it == e->selectedShape) {
-                        e->shapes.erase(it);
-                        break;
-                    }
-                }
-
-                e->selectedShape = nullptr;
+                e->shapes.erase(e->shapes.begin() + e->selectedShapeIndex);
+                e->selectedShapeIndex = -1;
             }
 
             return;
