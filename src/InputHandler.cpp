@@ -61,7 +61,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
             for (int idx : e->selectedShapes)
                 e->shapes[idx].rotate(angle, c);
 
-            e->dragAngle += angle * 180.0f / 3.14159265f;
+            e->dragAngle += angle * 180.0f / PI;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
             if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
         }
@@ -71,7 +71,7 @@ void InputHandler::cursorPositionCallback(GLFWwindow* window, double xpos, doubl
             for (int idx : e->selectedShapes)
                 Transformations::rotateShapeAroundOrigin(e->shapes[idx].vertices, angle);
 
-            e->dragAngle += angle * 180.0f / 3.14159265f;
+            e->dragAngle += angle * 180.0f / PI;
             if (e->dragAngle < 0.0f) e->dragAngle += 360.0f;
             if (e->dragAngle >= 360.0f) e->dragAngle -= 360.0f;
         }

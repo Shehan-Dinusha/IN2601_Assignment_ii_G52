@@ -3,6 +3,8 @@
 
 #include <vector>
 
+constexpr float PI = 3.14159265358979f;
+
 struct Point2D {
     float x;
     float y;

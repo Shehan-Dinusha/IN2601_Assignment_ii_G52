@@ -113,7 +113,7 @@ void Transformations::generateRectangle(std::vector<Point2D>& out, float cx, flo
 
 void Transformations::generateCircle(std::vector<Point2D>& out, float cx, float cy, float radius, int segments) {
     for (int i = 0; i < segments; ++i) {
-        float a = 6.2831853f * i / segments;
+        float a = 2 * PI * i / segments;
         out.push_back(Point2D(cx + radius * std::cos(a), cy + radius * std::sin(a)));
     }
 }
@@ -127,15 +127,15 @@ void Transformations::generateTriangle(std::vector<Point2D>& out, float cx, floa
 
 void Transformations::generateRegularPolygon(std::vector<Point2D>& out, float cx, float cy, float radius, int sides) {
     for (int i = 0; i < sides; ++i) {
-        float a = 6.2831853f * i / sides - 1.5707963f;
+        float a = 2*PI * i / sides - PI/2;
         out.push_back(Point2D(cx + radius * std::cos(a), cy + radius * std::sin(a)));
     }
 }
 
 void Transformations::generateStar(std::vector<Point2D>& out, float cx, float cy, float outerRadius, float innerRadius) {
     for (int i = 0; i < 5; ++i) {
-        float a = 6.2831853f * i / 5 - 1.5707963f;
-        float a2 = a + 3.1415926f / 5;
+        float a = 2*PI * i / 5 - PI/2;
+        float a2 = a + PI / 5;
         out.push_back(Point2D(cx + outerRadius * std::cos(a), cy + outerRadius * std::sin(a)));
         out.push_back(Point2D(cx + innerRadius * std::cos(a2), cy + innerRadius * std::sin(a2)));
     }

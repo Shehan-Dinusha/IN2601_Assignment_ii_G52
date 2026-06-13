@@ -96,8 +96,9 @@ private:
     float dragScaleFactor;
     float dragAngle;
 
-    std::vector<std::vector<Shape>> undoStack;
-    std::vector<std::vector<Shape>> redoStack;
+    struct SnapState { std::vector<Shape> shapes; std::vector<int> selectedShapes; };
+    std::vector<SnapState> undoStack;
+    std::vector<SnapState> redoStack;
 
     bool isSelecting;
     float selBoxX1, selBoxY1, selBoxX2, selBoxY2;

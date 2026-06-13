@@ -7,10 +7,6 @@ static float cross2D(const Point2D& a, const Point2D& b) {
     return a.x * b.y - a.y * b.x;
 }
 
-static float dot2D(const Point2D& a, const Point2D& b) {
-    return a.x * b.x + a.y * b.y;
-}
-
 static Point2D sub2D(const Point2D& a, const Point2D& b) {
     return Point2D(a.x - b.x, a.y - b.y, 1.0f);
 }
@@ -43,7 +39,7 @@ static float distSq(const Point2D& a, const Point2D& b) {
 
 // Normalize angle to [0, 2π)
 static float normAngle(float a) {
-    const float twoPi = 6.28318530718f;
+    const float twoPi = 2*PI;
     while (a < 0.0f) a += twoPi;
     while (a >= twoPi) a -= twoPi;
     return a;

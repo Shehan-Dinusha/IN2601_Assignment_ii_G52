@@ -141,7 +141,7 @@ Point2D Engine::selectedCentroid() const {
 }
 
 void Engine::pushUndo() {
-    undoStack.push_back(shapes);
+    undoStack.push_back({shapes, selectedShapes});
     if (undoStack.size() > 100) undoStack.erase(undoStack.begin());
     redoStack.clear();
 }
@@ -194,18 +194,22 @@ void Engine::pasteClipboard() {
 
 void Engine::undo() {
     if (undoStack.empty()) return;
-    redoStack.push_back(shapes);
-    shapes = undoStack.back();
+    redoStack.push_back({shapes, selectedShapes});
+    shapes = undoStack.back().shapes;
+    selectedShapes = undoStack.back().selectedShapes;
     undoStack.pop_back();
-    clearSelection();
+    currentShape.clear();
+    isDrawing = false;
 }
 
 void Engine::redo() {
     if (redoStack.empty()) return;
-    undoStack.push_back(shapes);
-    shapes = redoStack.back();
+    undoStack.push_back({shapes, selectedShapes});
+    shapes = redoStack.back().shapes;
+    selectedShapes = redoStack.back().selectedShapes;
     redoStack.pop_back();
-    clearSelection();
+    currentShape.clear();
+    isDrawing = false;
 }
 
 void Engine::saveShapes(const char* filename) {
