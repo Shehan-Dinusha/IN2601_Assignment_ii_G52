@@ -6,6 +6,23 @@
 #include <cmath>
 #include <algorithm>
 
+#ifndef CALLBACK
+#define CALLBACK __stdcall
+#endif
+#include <GL/glu.h>
+
+static void CALLBACK tessBegin(GLenum type) { glBegin(type); }
+static void CALLBACK tessEnd() { glEnd(); }
+static void CALLBACK tessVertex(void* v) {
+    glVertex2dv(static_cast<GLdouble*>(v));
+}
+static void CALLBACK tessCombine(GLdouble coords[3], void**, GLfloat*, void** outData) {
+    GLdouble* vert = new GLdouble[3];
+    vert[0] = coords[0]; vert[1] = coords[1]; vert[2] = coords[2];
+    *outData = vert;
+}
+static void CALLBACK tessError(GLenum) {}
+
 Renderer::Renderer(Engine& eng) : engine(eng) {}
 
 void Renderer::render() {
@@ -156,34 +173,32 @@ void Renderer::drawGrid(float effLeft, float effRight) {
 void Renderer::floodFill(const std::vector<Point2D>& polygon) {
     if (polygon.size() < 3) return;
 
-    glClear(GL_STENCIL_BUFFER_BIT);
-    glEnable(GL_STENCIL_TEST);
-    glStencilMask(1);
-    glStencilFunc(GL_ALWAYS, 0, 1);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
+    std::vector<GLdouble> verts(polygon.size() * 3);
+    for (size_t i = 0; i < polygon.size(); ++i) {
+        verts[i * 3 + 0] = polygon[i].x;
+        verts[i * 3 + 1] = polygon[i].y;
+        verts[i * 3 + 2] = 0.0;
+    }
 
-    glBegin(GL_TRIANGLE_FAN);
-    for (auto& pt : polygon) glVertex2f(pt.x, pt.y);
-    glEnd();
+    GLUtesselator* tess = gluNewTess();
+    if (!tess) return;
 
-    glStencilFunc(GL_EQUAL, 1, 1);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    gluTessCallback(tess, GLU_TESS_BEGIN,   (void(CALLBACK*)())tessBegin);
+    gluTessCallback(tess, GLU_TESS_END,     (void(CALLBACK*)())tessEnd);
+    gluTessCallback(tess, GLU_TESS_VERTEX,  (void(CALLBACK*)())tessVertex);
+    gluTessCallback(tess, GLU_TESS_COMBINE, (void(CALLBACK*)())tessCombine);
+    gluTessCallback(tess, GLU_TESS_ERROR,   (void(CALLBACK*)())tessError);
 
-    float halfH = (engine.worldMaxY - engine.worldMinY) * 0.5f;
-    float cx = (engine.worldMinX + engine.worldMaxX) * 0.5f;
-    float cy = (engine.worldMinY + engine.worldMaxY) * 0.5f;
-    int canvasX = static_cast<int>(engine.panelWidth);
-    int canvasW = engine.windowWidth - canvasX;
-    float halfW = halfH * (canvasW / (float)engine.windowHeight);
+    gluTessProperty(tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_NONZERO);
 
-    glBegin(GL_QUADS);
-    glVertex2f(cx - halfW, cy - halfH);
-    glVertex2f(cx + halfW, cy - halfH);
-    glVertex2f(cx + halfW, cy + halfH);
-    glVertex2f(cx - halfW, cy + halfH);
-    glEnd();
+    gluTessBeginPolygon(tess, nullptr);
+    gluTessBeginContour(tess);
+    for (size_t i = 0; i < polygon.size(); ++i)
+        gluTessVertex(tess, &verts[i * 3], &verts[i * 3]);
+    gluTessEndContour(tess);
+    gluTessEndPolygon(tess);
 
-    glDisable(GL_STENCIL_TEST);
+    gluDeleteTess(tess);
 }
 
 void Renderer::screenToWorld(double screenX, double screenY, float& worldX, float& worldY) {
